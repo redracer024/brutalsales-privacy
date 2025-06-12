@@ -29,6 +29,272 @@ import { supabase } from '@/lib/supabase';
 import { products } from '@/src/stripe-config';
 import { useGooglePlayBilling } from '@/hooks/useGooglePlayBilling';
 
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  gradient: { flex: 1 },
+  scrollContent: { padding: 20 },
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  crownContainer: {
+    backgroundColor: 'rgba(217, 119, 6, 0.2)',
+    borderRadius: 50,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#D97706',
+  },
+  title: {
+    fontSize: 32,
+    fontFamily: 'Cinzel-Bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#A78BFA',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  billingStatus: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#C4B5FD',
+  },
+  statusTextSuccess: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#22C55E',
+    textAlign: 'center',
+  },
+  errorContainer: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  errorText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: '#EF4444',
+    flex: 1,
+  },
+  retryButton: {
+    backgroundColor: '#D97706',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
+  },
+  plansContainer: {
+    marginBottom: 32,
+    gap: 20,
+  },
+  planCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    position: 'relative',
+  },
+  planCardSelected: {
+    borderColor: '#D97706',
+    backgroundColor: 'rgba(217, 119, 6, 0.1)',
+  },
+  planCardPopular: {
+    borderColor: '#8B5CF6',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+  },
+  planCardComingSoon: {
+    opacity: 0.8,
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: -12,
+    left: 20,
+    right: 20,
+    backgroundColor: '#8B5CF6',
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  popularBadgeText: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
+  },
+  planHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  planIconContainer: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+  },
+  planName: {
+    fontSize: 24,
+    fontFamily: 'Cinzel-Bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  planDescription: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#A78BFA',
+    textAlign: 'center',
+  },
+  planPricing: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  planPrice: {
+    fontSize: 36,
+    fontFamily: 'Inter-Bold',
+  },
+  planPeriod: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#C4B5FD',
+    marginTop: 4,
+  },
+  planFeatures: {
+    marginBottom: 24,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  featureText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#E5E7EB',
+    flex: 1,
+  },
+  planButtonContainer: {
+    marginVertical: 12,
+    alignItems: 'center',
+  },
+  planButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 8,
+    width: '100%',
+    opacity: 1,
+  },
+  comingSoonButton: {
+    opacity: 0.5,
+  },
+  buttonGradient: {
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  comingSoonText: {
+    position: 'absolute',
+    top: '40%',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: 18,
+    color: '#fff',
+    zIndex: 2,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  upgradeButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+  platformNotice: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  platformNoticeText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#60A5FA',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  premiumActiveContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    paddingVertical: 60,
+  },
+  premiumActiveTitle: {
+    fontSize: 32,
+    fontFamily: 'Cinzel-Bold',
+    color: '#FFFFFF',
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  premiumActiveDescription: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#C4B5FD',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  subscriptionInfo: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.3)',
+    width: '100%',
+    marginBottom: 16,
+  },
+  subscriptionTitle: {
+    fontSize: 18,
+    fontFamily: 'Cinzel-SemiBold',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  subscriptionDetail: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#C4B5FD',
+    marginBottom: 4,
+  },
+});
+
 export default function PremiumScreen() {
   const [selectedPlan, setSelectedPlan] = useState('premium');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -388,283 +654,3 @@ export default function PremiumScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  gradient: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  header: {
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 32,
-  },
-  crownContainer: {
-    backgroundColor: 'rgba(217, 119, 6, 0.2)',
-    borderRadius: 50,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: '#D97706',
-  },
-  title: {
-    fontSize: 32,
-    fontFamily: 'Cinzel-Bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#A78BFA',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  billingStatus: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#C4B5FD',
-  },
-  statusTextSuccess: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#22C55E',
-    textAlign: 'center',
-  },
-  errorContainer: {
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  errorText: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#EF4444',
-    flex: 1,
-  },
-  retryButton: {
-    backgroundColor: '#D97706',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  retryButtonText: {
-    fontSize: 12,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
-  },
-  plansContainer: {
-    marginBottom: 32,
-    gap: 20,
-  },
-  planCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    position: 'relative',
-  },
-  planCardSelected: {
-    borderColor: '#D97706',
-    backgroundColor: 'rgba(217, 119, 6, 0.1)',
-  },
-  planCardPopular: {
-    borderColor: '#8B5CF6',
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-  },
-  planCardComingSoon: {
-    opacity: 0.8,
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: -12,
-    left: 20,
-    right: 20,
-    backgroundColor: '#8B5CF6',
-    borderRadius: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-  },
-  popularBadgeText: {
-    fontSize: 12,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
-  },
-  planHeader: {
-    alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 8,
-  },
-  planIconContainer: {
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-  },
-  planName: {
-    fontSize: 24,
-    fontFamily: 'Cinzel-Bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  planDescription: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#A78BFA',
-    textAlign: 'center',
-  },
-  planPricing: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  planPrice: {
-    fontSize: 36,
-    fontFamily: 'Inter-Bold',
-  },
-  planPeriod: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#C4B5FD',
-    marginTop: 4,
-  },
-  planFeatures: {
-    marginBottom: 24,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 12,
-  },
-  featureText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#E5E7EB',
-    flex: 1,
-  },
-  planButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  planButtonSelected: {
-    // Additional styling for selected button
-  },
-  planButtonGradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  planButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#C4B5FD',
-  },
-  planButtonTextSelected: {
-    color: '#FFFFFF',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  platformNotice: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
-  },
-  platformNoticeText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#60A5FA',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  premiumActiveContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingVertical: 60,
-  },
-  premiumActiveTitle: {
-    fontSize: 32,
-    fontFamily: 'Cinzel-Bold',
-    color: '#FFFFFF',
-    marginTop: 24,
-    marginBottom: 16,
-  },
-  premiumActiveDescription: {
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#C4B5FD',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-  },
-  subscriptionInfo: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(217, 119, 6, 0.3)',
-    width: '100%',
-    marginBottom: 16,
-  },
-  subscriptionTitle: {
-    fontSize: 18,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
-    marginBottom: 12,
-  },
-  subscriptionDetail: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#C4B5FD',
-    marginBottom: 4,
-  },
-  comingSoonButton: {
-    opacity: 0.7,
-  },
-  comingSoonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  planButtonContainer: {
-    width: '100%',
-    marginTop: 20,
-  },
-  buttonGradient: {
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  upgradeButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});

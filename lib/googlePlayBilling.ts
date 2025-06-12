@@ -57,14 +57,14 @@ export namespace GooglePlayBilling {
       }
 
       try {
-        const products = await InAppPurchases.getSubscriptions(productIds);
+        const products = await InAppPurchases.getSubscriptions({ skus: productIds });
         return products.map(product => ({
           productId: product.productId,
           title: product.title,
           description: product.description,
-          price: product.price,
-          localizedPrice: product.localizedPrice,
-          currency: product.currency
+          price: product.price || '',
+          localizedPrice: product.localizedPrice || '',
+          currency: product.currency || 'USD'
         }));
       } catch (error) {
         console.error('Failed to get products:', error);
@@ -81,10 +81,10 @@ export namespace GooglePlayBilling {
         const purchases = await InAppPurchases.getAvailablePurchases();
         return purchases.map(purchase => ({
           productId: purchase.productId,
-          purchaseToken: purchase.purchaseToken,
-          transactionId: purchase.transactionId,
-          transactionDate: purchase.transactionDate,
-          acknowledged: purchase.isAcknowledged
+          purchaseToken: purchase.purchaseToken || '',
+          transactionId: purchase.transactionId || '',
+          transactionDate: purchase.transactionDate || Date.now(),
+          acknowledged: purchase.isAcknowledged || false
         }));
       } catch (error) {
         console.error('Failed to get purchases:', error);
@@ -103,12 +103,16 @@ export namespace GooglePlayBilling {
           andDangerouslyFinishTransactionAutomaticallyIOS: false
         });
 
+        if (!purchase) {
+          throw new Error('Purchase failed');
+        }
+
         return {
           productId: purchase.productId,
-          purchaseToken: purchase.purchaseToken,
-          transactionId: purchase.transactionId,
-          transactionDate: purchase.transactionDate,
-          acknowledged: purchase.isAcknowledged
+          purchaseToken: purchase.purchaseToken || '',
+          transactionId: purchase.transactionId || '',
+          transactionDate: purchase.transactionDate || Date.now(),
+          acknowledged: purchase.isAcknowledged || false
         };
       } catch (error) {
         console.error('Failed to purchase product:', error);

@@ -4,7 +4,23 @@ import { GooglePlayBilling } from '../lib/googlePlayBilling';
 import { useAuth } from './useAuth';
 import { supabase } from '../lib/supabase';
 
-export function useGooglePlayBilling() {
+interface GooglePlayBillingHook {
+  isInitialized: boolean;
+  isLoading: boolean;
+  products: GooglePlayBilling.Product[];
+  purchases: GooglePlayBilling.Purchase[];
+  error: string | null;
+  purchaseProduct: (productId: string) => Promise<GooglePlayBilling.Purchase>;
+  checkPremiumStatus: () => Promise<boolean>;
+  refreshProducts: () => Promise<void>;
+  refreshPurchases: () => Promise<void>;
+  isPremiumActive: boolean;
+  getPremiumProduct: () => GooglePlayBilling.Product | undefined;
+  getYearlyProduct: () => GooglePlayBilling.Product | undefined;
+  retryInitialization: () => Promise<void>;
+}
+
+export function useGooglePlayBilling(): GooglePlayBillingHook {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [products, setProducts] = useState<GooglePlayBilling.Product[]>([]);
@@ -134,5 +150,5 @@ export function useGooglePlayBilling() {
     getPremiumProduct,
     getYearlyProduct,
     retryInitialization
-  };
+  } as const;
 }
