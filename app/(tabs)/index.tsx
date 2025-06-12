@@ -34,7 +34,7 @@ export default function HomeScreen() {
 
   // Check if user is premium (Google Play Billing OR Supabase subscription)
   const [supabasePremium, setSupabasePremium] = useState(false);
-  const isPremium = isPremiumActive || supabasePremium;
+  const isPremium = Boolean(isPremiumActive) || supabasePremium;
 
   const adManager = useAdManager({
     isPremium,

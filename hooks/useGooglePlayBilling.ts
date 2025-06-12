@@ -32,7 +32,9 @@ export function useGooglePlayBilling(): GooglePlayBillingHook {
     initializeBilling();
     return () => {
       // Cleanup subscriptions
-      GooglePlayBilling.GooglePlayBilling.endConnection();
+      if (Platform.OS === 'android') {
+        GooglePlayBilling.GooglePlayBilling.endConnection();
+      }
     };
   }, []);
 
@@ -117,9 +119,14 @@ export function useGooglePlayBilling(): GooglePlayBillingHook {
     }
   };
 
-  const isPremiumActive = purchases.some(purchase => 
-    purchase.productId === GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_MONTHLY ||
-    purchase.productId === GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_YEARLY
+  // Ensure isPremiumActive is always a boolean
+  const isPremiumActive = Boolean(
+    Platform.OS === 'android' 
+      ? purchases.some(purchase => 
+          purchase.productId === GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_MONTHLY ||
+          purchase.productId === GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_YEARLY
+        )
+      : false
   );
 
   const getPremiumProduct = () => {
