@@ -124,4 +124,4 @@ For support, email support@brutalsales.com or use the in-app support feature.
 
 ## License
 
-Proprietary - All rights reserved
+Proprietary - All rights reserved# brutalsales-project
