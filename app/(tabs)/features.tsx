@@ -361,16 +361,6 @@ export default function FeaturesScreen() {
             <Text style={styles.title}>Feature Roadmap</Text>
             <Text style={styles.subtitle}>Vote on features you want to see next!</Text>
           </View>
-          
-          <View style={styles.headerButtons}>
-            <TouchableOpacity 
-              style={styles.submitButton}
-              onPress={() => setShowSubmitModal(true)}
-            >
-              <Plus size={18} color="#FFFFFF" />
-              <Text style={styles.submitButtonText}>Suggest</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Category Filter */}
@@ -552,26 +542,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: '#A78BFA',
     marginTop: 4,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(217, 119, 6, 0.3)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#D97706',
-    gap: 4,
-  },
-  submitButtonText: {
-    fontSize: 12,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
   },
   categoryContainer: {
     marginBottom: 16,
