@@ -30,7 +30,6 @@ import {
 } from 'lucide-react-native';
 import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
-import { router } from 'expo-router';
 
 interface FeatureIdea {
   id: string;
