@@ -1,0 +1,72 @@
+
+// Apply fix-expo-modules after projects are loaded
+apply from: file("fix-expo-modules.gradle")
+
+buildscript {
+    ext {
+        buildToolsVersion = '33.0.0'
+        minSdkVersion = 24
+        compileSdkVersion = 33
+        targetSdkVersion = 33
+        kotlinVersion = '1.7.20'
+        ndkVersion = "23.1.7779620"
+
+        // Define common Java version for consistency
+        javaVersion = JavaVersion.VERSION_11
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.google.gms:google-services:4.3.15'
+        classpath 'com.android.tools.build:gradle:7.3.1'
+        classpath('com.facebook.react:react-native-gradle-plugin')
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
+    }
+}
+
+// Force a specific Java home path
+if (System.getenv("JAVA_HOME")) {
+    println "Using JAVA_HOME from environment: " + System.getenv("JAVA_HOME")
+} else {
+    // Find Java in the path
+    def javaExecutablePath = "which java".execute().text.trim()
+    if (javaExecutablePath) {
+        def javaHome = new File(javaExecutablePath).getParentFile().getParentFile()
+        println "Setting JAVA_HOME based on java in PATH: " + javaHome
+        System.setProperty("java.home", javaHome.absolutePath)
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    // Apply consistent Java version to all projects
+    plugins.withType(JavaPlugin) {
+        project.tasks.withType(JavaCompile) {
+            sourceCompatibility = rootProject.ext.javaVersion
+            targetCompatibility = rootProject.ext.javaVersion
+        }
+    }
+
+    // Apply consistent Kotlin version to all projects
+    plugins.withType(org.jetbrains.kotlin.gradle.plugin.KotlinBasePluginWrapper) {
+        project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
+            kotlinOptions {
+                jvmTarget = '11'
+            }
+        }
+    }
+}
+
+// This is needed to stop the classifier property error in newer Gradle versions
+tasks.withType(Jar) {
+    // Remove classifier properties which are no longer supported
+    if (hasProperty('classifier')) {
+        archiveClassifier.set(classifier)
+    }
+}
