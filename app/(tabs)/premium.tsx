@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useRouter } from 'expo-router';
 import { 
   Crown, 
   Check, 
@@ -28,6 +28,84 @@ import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
 import { products } from '@/src/stripe-config';
 import { useGooglePlayBilling } from '@/hooks/useGooglePlayBilling';
+import { useAuth } from '@/hooks/useAuth';
+import { GooglePlayBilling } from '@/lib/googlePlayBilling';
+
+interface Plan {
+  id: string;
+  name: string;
+  price: string;
+  period: string;
+  description: string;
+  type: 'monthly' | 'yearly';
+  features: string[];
+  popular?: boolean;
+  icon?: any; // For Lucide icons
+  color?: string;
+  comingSoon?: boolean;
+}
+
+interface Subscription {
+  id: string;
+  user_id: string;
+  status: string;
+  current_period_end: string;
+  cancel_at_period_end?: boolean;
+}
+
+const plans: Plan[] = [
+  {
+    id: 'premium-monthly',
+    name: 'Premium',
+    price: '9.99',
+    period: 'per month',
+    description: 'Perfect for individual sellers',
+    type: 'monthly',
+    features: [
+      'Unlimited descriptions',
+      'Ad-free experience',
+      'Advanced AI models',
+      'Priority support'
+    ],
+    icon: Crown,
+    color: '#D97706'
+  },
+  {
+    id: 'pro-monthly',
+    name: 'Pro',
+    price: '19.99',
+    period: 'per month',
+    description: 'For professional sellers',
+    type: 'monthly',
+    features: [
+      'Everything in Premium',
+      'Custom branding',
+      'Team collaboration',
+      'API access',
+      'Advanced analytics'
+    ],
+    icon: Shield,
+    color: '#EC4899',
+    comingSoon: true
+  },
+  {
+    id: 'premium-yearly',
+    name: 'Premium Yearly',
+    price: '99.99',
+    period: 'per year',
+    description: 'Best value for power sellers',
+    type: 'yearly',
+    features: [
+      'Everything in monthly plan',
+      'Save 17% compared to monthly',
+      'Early access to new features',
+      'Premium support'
+    ],
+    popular: true,
+    icon: Rocket,
+    color: '#8B5CF6'
+  }
+];
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -157,29 +235,31 @@ const styles = StyleSheet.create({
   },
   planName: {
     fontSize: 24,
-    fontFamily: 'Cinzel-Bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
+    marginBottom: 4,
   },
   planDescription: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#A78BFA',
-    textAlign: 'center',
+    color: '#D97706',
+    marginBottom: 16,
   },
   planPricing: {
     alignItems: 'center',
     marginBottom: 24,
   },
   planPrice: {
-    fontSize: 36,
+    fontSize: 32,
     fontFamily: 'Inter-Bold',
+    color: '#D97706',
+    marginBottom: 2,
   },
   planPeriod: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#C4B5FD',
-    marginTop: 4,
+    color: '#D97706',
+    marginBottom: 12,
   },
   planFeatures: {
     marginBottom: 24,
@@ -193,8 +273,8 @@ const styles = StyleSheet.create({
   featureText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#E5E7EB',
-    flex: 1,
+    color: '#D97706',
+    marginLeft: 8,
   },
   planButtonContainer: {
     marginVertical: 12,
@@ -219,15 +299,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   comingSoonText: {
-    position: 'absolute',
-    top: '40%',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontWeight: 'bold',
-    fontSize: 18,
-    color: '#fff',
-    zIndex: 2,
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: '#D97706',
+    marginTop: 8,
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -260,14 +335,14 @@ const styles = StyleSheet.create({
   premiumActiveTitle: {
     fontSize: 32,
     fontFamily: 'Cinzel-Bold',
-    color: '#FFFFFF',
+    color: '#D97706',
     marginTop: 24,
     marginBottom: 16,
   },
   premiumActiveDescription: {
     fontSize: 16,
     fontFamily: 'Inter-Regular',
-    color: '#C4B5FD',
+    color: '#D97706',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 32,
@@ -283,237 +358,258 @@ const styles = StyleSheet.create({
   },
   subscriptionTitle: {
     fontSize: 18,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
     marginBottom: 12,
   },
   subscriptionDetail: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#C4B5FD',
+    color: '#D97706',
     marginBottom: 4,
+  },
+  upgradeButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 8,
+    width: '100%',
+    opacity: 1,
+  },
+  upgradeButtonSelected: {
+    borderColor: '#D97706',
+    backgroundColor: 'rgba(217, 119, 6, 0.1)',
+  },
+  upgradeButtonDisabled: {
+    opacity: 0.5,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#C4B5FD',
   },
 });
 
 export default function PremiumScreen() {
-  const [selectedPlan, setSelectedPlan] = useState('premium');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [subscription, setSubscription] = useState<any>(null);
-
-  // Google Play Billing integration
-  const { 
-    isInitialized,
-    isPremiumActive,
-    getPremiumProduct,
-    getYearlyProduct,
-    purchaseProduct,
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const { user, loading } = useAuth();
+  const {
+    isInitialized: isBillingInitialized,
+    isLoading: isBillingLoading,
     error: billingError,
-    retryInitialization
+    products: googlePlayProducts,
+    purchaseProduct,
+    retryInitialization,
   } = useGooglePlayBilling();
-
-  // Check if user is premium (Google Play Billing OR Supabase subscription)
-  const [supabasePremium, setSupabasePremium] = useState(false);
-  const isPremium = isPremiumActive || supabasePremium;
-
-  const monthlyProduct = getPremiumProduct();
-  const yearlyProduct = getYearlyProduct();
-
-  useEffect(() => {
-    checkAuthAndSubscription();
-  }, []);
+  const router = useRouter();
 
   const checkAuthAndSubscription = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-
-      if (user) {
-        const { data: subscriptionData } = await supabase
-          .from('stripe_user_subscriptions')
-          .select('*')
-          .maybeSingle();
-
-        setSubscription(subscriptionData);
-        setSupabasePremium(subscriptionData?.subscription_status === 'active');
+      if (!user) {
+        console.log('No user found, redirecting to login');
+        router.replace('/(auth)/login');
+        return;
       }
-    } catch (error) {
-      console.error('Error checking subscription:', error);
+
+      console.log('Checking subscription for user:', user.id);
+
+      // Check subscription status
+      const { data: subscriptionData, error: subscriptionError } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (subscriptionError) {
+        console.error('Error fetching subscription:', subscriptionError);
+        setError('Failed to check subscription status');
+        return;
+      }
+
+      // Set subscription state - will be null if no active subscription found
+      setSubscription(subscriptionData || null);
+
+      // If on Android, also check Google Play subscription
+      if (Platform.OS === 'android') {
+        try {
+          await retryInitialization();
+        } catch (err) {
+          console.error('Error initializing billing:', err);
+          setError(err instanceof Error ? err.message : 'Failed to initialize billing');
+        }
+      }
+    } catch (err) {
+      console.error('Error in checkAuthAndSubscription:', err);
+      setError(err instanceof Error ? err.message : 'Failed to check subscription status');
     }
   };
 
-  const plans = [
-    {
-      id: 'premium',
-      name: 'Premium',
-      price: monthlyProduct?.localizedPrice || '$9.99',
-      period: 'per month',
-      description: 'Perfect for individual sellers',
-      icon: Crown,
-      color: '#D97706',
-      productId: monthlyProduct?.productId,
-      features: [
-        'Unlimited descriptions',
-        'Ad-free experience',
-        'Advanced AI models',
-        'Priority support'
-      ],
-      popular: false
-    },
-    {
-      id: 'pro',
-      name: 'Pro',
-      price: yearlyProduct?.localizedPrice || '$19.99',
-      period: 'per month',
-      description: 'For power sellers who need advanced tools',
-      icon: Rocket,
-      color: '#8B5CF6',
-      productId: yearlyProduct?.productId,
-      features: [
-        'Everything in Premium',
-        'Browser extension access',
-        'Voice input',
-        'Bulk operations (CSV upload)',
-        'Marketplace auto-posting',
-        'Multi-language support',
-        'Performance analytics'
-      ],
-      popular: true,
-      comingSoon: true
+  useEffect(() => {
+    if (!loading) {
+      checkAuthAndSubscription();
     }
-  ];
+  }, [user, loading]);
 
   const handleUpgrade = async (planId: string) => {
-    // Handle Google Play Billing for Android
-    if (Platform.OS === 'android') {
-      if (!isInitialized) {
-        Alert.alert('Error', 'Google Play Billing is not initialized. Please try again.');
-        return;
-      }
-
-      const plan = plans.find(p => p.id === planId);
-      if (!plan?.productId) {
-        Alert.alert('Error', 'Product not available. Please try again later.');
-        return;
-      }
-
-      setIsProcessing(true);
-      
-      try {
-        const purchase = await purchaseProduct(plan.productId);
-        
-        if (purchase) {
-          Alert.alert(
-            'Purchase Successful!',
-            'Welcome to BrutalSales Premium! You now have unlimited access.',
-            [{ text: 'OK' }]
-          );
-        }
-      } catch (error: any) {
-        const errorMessage = error.message || 'Purchase failed';
-        Alert.alert('Purchase Failed', errorMessage);
-      } finally {
-        setIsProcessing(false);
-      }
-      return;
-    }
-
-    // Handle Stripe for web/other platforms
-    if (!user) {
-      Alert.alert(
-        'Sign In Required',
-        'Please sign in to upgrade to premium.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign In', onPress: () => router.push('/(auth)/login') }
-        ]
-      );
-      return;
-    }
-
-    setIsProcessing(true);
-    
     try {
-      const product = products[0]; // Get the upgrade product
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('No active session');
+      setIsLoading(true);
+      setError(null);
+
+      if (Platform.OS === 'android') {
+        if (!isBillingInitialized) {
+          Alert.alert('Error', 'Google Play Billing is not initialized. Please try again.');
+          return;
+        }
+
+        try {
+          const purchase = await purchaseProduct(planId);
+          console.log('Purchase successful:', purchase);
+          
+          // Verify purchase with backend
+          const { data: verificationData, error: verificationError } = await supabase.functions.invoke('verify-purchase', {
+            body: {
+              purchaseToken: purchase.purchaseToken,
+              productId: purchase.productId,
+              userId: user?.id
+            }
+          });
+
+          if (verificationError) {
+            throw new Error('Purchase verification failed');
+          }
+
+          Alert.alert('Success', 'Thank you for upgrading to premium!');
+          router.replace('/(tabs)');
+        } catch (purchaseError) {
+          console.error('Purchase error:', purchaseError);
+          Alert.alert('Error', 'Failed to complete purchase. Please try again.');
+        }
+      } else if (Platform.OS === 'web') {
+        // Use Stripe for web
+        const response = await fetch('/api/stripe-checkout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            priceId: planId,
+            userId: user?.id,
+          }),
+        });
+
+        const { url } = await response.json();
+        if (url) {
+          window.location.href = url;
+        }
+      } else {
+        // For iOS, we'll implement Apple's In-App Purchase later
+        Alert.alert('Coming Soon', 'iOS in-app purchases will be available soon!');
       }
-
-      const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/stripe-checkout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          price_id: product.priceId,
-          success_url: 'brutalsales://success',
-          cancel_url: 'brutalsales://cancel',
-          mode: product.mode,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create checkout session');
-      }
-
-      if (data.url) {
-        await Linking.openURL(data.url);
-      }
-    } catch (error: any) {
-      console.error('Upgrade error:', error);
-      Alert.alert('Error', error.message || 'Failed to start upgrade process');
+    } catch (error) {
+      console.error('Error upgrading:', error);
+      setError('Failed to process payment. Please try again.');
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
     }
   };
 
-  const renderPlanButton = (plan: any) => {
+  const renderPlanButton = (plan: Plan) => {
+    // Show Coming Soon for Pro plan
     if (plan.comingSoon) {
       return (
-        <View style={styles.planButtonContainer}>
-          <View style={[styles.planButton, styles.comingSoonButton]}>
-            <LinearGradient
-              colors={[plan.color, plan.color]}
-              style={styles.buttonGradient}
-            >
-              <Text style={styles.comingSoonText}>Coming Soon</Text>
-            </LinearGradient>
-          </View>
-        </View>
+        <TouchableOpacity
+          style={[styles.upgradeButton, styles.upgradeButtonDisabled]}
+          onPress={() => Alert.alert('Coming Soon', 'This plan will be available soon!')}
+        >
+          <Text style={styles.upgradeButtonText}>Coming Soon</Text>
+        </TouchableOpacity>
       );
     }
 
-    return (
-      <TouchableOpacity
-        style={styles.planButtonContainer}
-        onPress={() => handleUpgrade(plan.id)}
-        disabled={isProcessing}
-      >
-        <View style={[styles.planButton, isProcessing && styles.buttonDisabled]}>
-          <LinearGradient
-            colors={[plan.color, plan.color]}
-            style={styles.buttonGradient}
-          >
-            {isProcessing ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.upgradeButtonText}>
-                Upgrade Now
-              </Text>
-            )}
-          </LinearGradient>
-        </View>
-      </TouchableOpacity>
-    );
+    // For Android, use Google Play Billing
+    if (Platform.OS === 'android') {
+      const googlePlayProduct = isBillingInitialized ? googlePlayProducts.find(p => p.productId === plan.id) : null;
+
+      return (
+        <TouchableOpacity
+          style={[
+            styles.upgradeButton,
+            selectedPlan === plan.id && styles.upgradeButtonSelected,
+            isLoading && styles.upgradeButtonDisabled,
+          ]}
+          onPress={() => handleUpgrade(plan.id)}
+          disabled={isLoading || !isBillingInitialized}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.upgradeButtonText}>
+              {isBillingInitialized ? `Upgrade Now - ${googlePlayProduct?.localizedPrice || plan.price}` : 'Loading...'}
+            </Text>
+          )}
+        </TouchableOpacity>
+      );
+    } else if (Platform.OS === 'web') {
+      // Use Stripe pricing for web
+      return (
+        <TouchableOpacity
+          style={[
+            styles.upgradeButton,
+            selectedPlan === plan.id && styles.upgradeButtonSelected,
+            isLoading && styles.upgradeButtonDisabled,
+          ]}
+          onPress={() => handleUpgrade(plan.id)}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.upgradeButtonText}>
+              {`Upgrade Now - $${plan.price}`}
+            </Text>
+          )}
+        </TouchableOpacity>
+      );
+    } else {
+      // For iOS, show coming soon
+      return (
+        <TouchableOpacity
+          style={[styles.upgradeButton, styles.upgradeButtonDisabled]}
+          onPress={() => Alert.alert('Coming Soon', 'iOS in-app purchases will be available soon!')}
+        >
+          <Text style={styles.upgradeButtonText}>Coming Soon to iOS</Text>
+        </TouchableOpacity>
+      );
+    }
   };
 
-  if (isPremium) {
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <LinearGradient
+          colors={['#0F0A19', '#1E1B4B', '#312E81']}
+          style={styles.gradient}
+        >
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#D97706" />
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        </LinearGradient>
+      </SafeAreaView>
+    );
+  }
+
+  // Show premium active only if user has an active subscription
+  if (user && subscription?.status === 'active') {
     return (
       <SafeAreaView style={styles.container}>
         <LinearGradient
@@ -532,17 +628,17 @@ export default function PremiumScreen() {
                 <View style={styles.subscriptionInfo}>
                   <Text style={styles.subscriptionTitle}>Subscription Details</Text>
                   <Text style={styles.subscriptionDetail}>
-                    Status: {subscription.subscription_status}
+                    Status: {subscription.status}
                   </Text>
                   {subscription.current_period_end && (
                     <Text style={styles.subscriptionDetail}>
-                      Next billing: {new Date(subscription.current_period_end * 1000).toLocaleDateString()}
+                      Next billing: {new Date(subscription.current_period_end).toLocaleDateString()}
                     </Text>
                   )}
                 </View>
               )}
 
-              {Platform.OS === 'android' && isPremiumActive && (
+              {Platform.OS === 'android' && isBillingInitialized && (
                 <View style={styles.subscriptionInfo}>
                   <Text style={styles.subscriptionTitle}>Google Play Subscription</Text>
                   <Text style={styles.subscriptionDetail}>
@@ -557,6 +653,7 @@ export default function PremiumScreen() {
     );
   }
 
+  // Show upgrade options for non-premium users
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
@@ -564,7 +661,7 @@ export default function PremiumScreen() {
         style={styles.gradient}
       >
         {/* Ad Banner - only show for free users */}
-        <AdBanner isPremium={isPremium} />
+        <AdBanner isPremium={false} />
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Header */}
@@ -581,7 +678,7 @@ export default function PremiumScreen() {
           {/* Billing Status for Android */}
           {Platform.OS === 'android' && (
             <View style={styles.billingStatus}>
-              {!isInitialized ? (
+              {!isBillingInitialized ? (
                 <View style={styles.statusRow}>
                   <ActivityIndicator size="small" color="#D97706" />
                   <Text style={styles.statusText}>Initializing Google Play Billing...</Text>

@@ -1,88 +1,110 @@
 import { useState, useEffect } from 'react';
-import { Platform } from 'react-native';
-import { GooglePlayBilling } from '../lib/googlePlayBilling';
+import * as InAppPurchases from 'react-native-iap';
 import { useAuth } from './useAuth';
 import { supabase } from '../lib/supabase';
+import { analyticsService, ANALYTICS_EVENTS, AnalyticsEventName } from '../lib/analytics';
+
+interface Purchase {
+  productId: string;
+  purchaseToken: string;
+  transactionId: string;
+  transactionDate: number;
+  isAcknowledged: boolean;
+}
 
 interface GooglePlayBillingHook {
   isInitialized: boolean;
   isLoading: boolean;
-  products: GooglePlayBilling.Product[];
-  purchases: GooglePlayBilling.Purchase[];
   error: string | null;
-  purchaseProduct: (productId: string) => Promise<GooglePlayBilling.Purchase>;
-  checkPremiumStatus: () => Promise<boolean>;
-  refreshProducts: () => Promise<void>;
+  products: InAppPurchases.Product[];
+  purchases: Purchase[];
+  purchaseProduct: (productId: string) => Promise<Purchase>;
   refreshPurchases: () => Promise<void>;
-  isPremiumActive: boolean;
-  getPremiumProduct: () => GooglePlayBilling.Product | undefined;
-  getYearlyProduct: () => GooglePlayBilling.Product | undefined;
-  retryInitialization: () => Promise<void>;
 }
 
 export function useGooglePlayBilling(): GooglePlayBillingHook {
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [products, setProducts] = useState<GooglePlayBilling.Product[]>([]);
-  const [purchases, setPurchases] = useState<GooglePlayBilling.Purchase[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [products, setProducts] = useState<InAppPurchases.Product[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
   const { user } = useAuth();
 
   useEffect(() => {
-    initializeBilling();
-    return () => {
-      // Cleanup subscriptions
-      if (Platform.OS === 'android') {
-        GooglePlayBilling.GooglePlayBilling.endConnection();
+    const initBilling = async () => {
+      try {
+        await InAppPurchases.initConnection();
+        setIsInitialized(true);
+
+        // Get available products
+        const availableProducts = await InAppPurchases.getProducts({
+          skus: ['premium_monthly', 'premium_yearly']
+        });
+        setProducts(availableProducts);
+
+        // Get existing purchases
+        const existingPurchases = await InAppPurchases.getPurchaseHistory();
+        setPurchases(existingPurchases.map(p => ({
+          productId: p.productId,
+          purchaseToken: p.purchaseToken || '',
+          transactionId: p.transactionId || '',
+          transactionDate: p.transactionDate || Date.now(),
+          isAcknowledged: false
+        })));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to initialize billing');
       }
     };
-  }, []);
 
-  const initializeBilling = async () => {
-    try {
-      if (Platform.OS !== 'android') {
-        setIsInitialized(true);
-        setIsLoading(false);
-        return;
+    initBilling();
+
+    return () => {
+      if (isInitialized) {
+        InAppPurchases.endConnection();
       }
+    };
+  }, [isInitialized]);
 
-      await GooglePlayBilling.GooglePlayBilling.initConnection();
-      await loadProducts();
-      await loadPurchases();
-      setIsInitialized(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initialize billing');
-    } finally {
-      setIsLoading(false);
+  const purchaseProduct = async (productId: string): Promise<Purchase> => {
+    if (!isInitialized) {
+      throw new Error('Billing not initialized');
     }
-  };
 
-  const loadProducts = async () => {
-    try {
-      const productIds = Object.values(GooglePlayBilling.GOOGLE_PLAY_PRODUCTS);
-      const products = await GooglePlayBilling.GooglePlayBilling.getProducts(productIds);
-      setProducts(products);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load products');
-    }
-  };
-
-  const loadPurchases = async () => {
-    try {
-      const purchases = await GooglePlayBilling.GooglePlayBilling.getPurchases();
-      setPurchases(purchases);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load purchases');
-    }
-  };
-
-  const purchaseProduct = async (productId: string) => {
     try {
       setIsLoading(true);
-      const purchase = await GooglePlayBilling.GooglePlayBilling.purchaseProduct(productId);
       
+      // Track purchase initiated
+      await analyticsService.logEvent(ANALYTICS_EVENTS.PURCHASE_INITIATED as AnalyticsEventName, {
+        productId,
+        timestamp: Date.now()
+      });
+
+      const result = await InAppPurchases.requestSubscription({
+        sku: productId,
+        andDangerouslyFinishTransactionAutomaticallyIOS: false
+      });
+
+      if (!result || Array.isArray(result)) {
+        throw new Error('Purchase failed');
+      }
+
+      const purchase: Purchase = {
+        productId: result.productId,
+        purchaseToken: result.purchaseToken || '',
+        transactionId: result.transactionId || '',
+        transactionDate: result.transactionDate || Date.now(),
+        isAcknowledged: false
+      };
+
+      // Track successful purchase
+      await analyticsService.logEvent(ANALYTICS_EVENTS.PURCHASE_COMPLETED as AnalyticsEventName, {
+        productId: purchase.productId,
+        transactionId: purchase.transactionId,
+        timestamp: purchase.transactionDate
+      });
+
       // Verify purchase with backend
-      const { data: verificationData, error: verificationError } = await supabase.functions.invoke('verify-purchase', {
+      const { error: verificationError } = await supabase.functions.invoke('verify-purchase', {
         body: {
           purchaseToken: purchase.purchaseToken,
           productId: purchase.productId,
@@ -90,14 +112,22 @@ export function useGooglePlayBilling(): GooglePlayBillingHook {
         }
       });
 
-      if (verificationError || !verificationData.verified) {
-        throw new Error('Purchase verification failed');
+      if (verificationError) {
+        throw new Error(`Purchase verification failed: ${verificationError.message}`);
       }
 
       // Update local state
       setPurchases(prev => [...prev, purchase]);
       return purchase;
     } catch (err) {
+      // Track purchase error
+      await analyticsService.logEvent(ANALYTICS_EVENTS.PURCHASE_ERROR as AnalyticsEventName, {
+        productId,
+        error_message: err instanceof Error ? err.message : 'Unknown error',
+        timestamp: Date.now(),
+        success: false
+      });
+      
       setError(err instanceof Error ? err.message : 'Failed to purchase product');
       throw err;
     } finally {
@@ -105,57 +135,31 @@ export function useGooglePlayBilling(): GooglePlayBillingHook {
     }
   };
 
-  const checkPremiumStatus = async () => {
+  const refreshPurchases = async () => {
     try {
-      const purchases = await GooglePlayBilling.GooglePlayBilling.getPurchases();
-      const hasActiveSubscription = purchases.some(purchase => 
-        purchase.productId === GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_MONTHLY ||
-        purchase.productId === GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_YEARLY
-      );
-      return hasActiveSubscription;
+      setIsLoading(true);
+      const refreshedPurchases = await InAppPurchases.getPurchaseHistory();
+      setPurchases(refreshedPurchases.map(p => ({
+        productId: p.productId,
+        purchaseToken: p.purchaseToken || '',
+        transactionId: p.transactionId || '',
+        transactionDate: p.transactionDate || Date.now(),
+        isAcknowledged: false
+      })));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to check premium status');
-      return false;
+      setError(err instanceof Error ? err.message : 'Failed to refresh purchases');
+    } finally {
+      setIsLoading(false);
     }
-  };
-
-  // Ensure isPremiumActive is always a boolean
-  const isPremiumActive = Boolean(
-    Platform.OS === 'android' 
-      ? purchases.some(purchase => 
-          purchase.productId === GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_MONTHLY ||
-          purchase.productId === GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_YEARLY
-        )
-      : false
-  );
-
-  const getPremiumProduct = () => {
-    return products.find(product => product.productId === GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_MONTHLY);
-  };
-
-  const getYearlyProduct = () => {
-    return products.find(product => product.productId === GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_YEARLY);
-  };
-
-  const retryInitialization = async () => {
-    setError(null);
-    setIsLoading(true);
-    await initializeBilling();
   };
 
   return {
     isInitialized,
     isLoading,
+    error,
     products,
     purchases,
-    error,
     purchaseProduct,
-    checkPremiumStatus,
-    refreshProducts: loadProducts,
-    refreshPurchases: loadPurchases,
-    isPremiumActive,
-    getPremiumProduct,
-    getYearlyProduct,
-    retryInitialization
-  } as const;
+    refreshPurchases
+  };
 }

@@ -1,14 +1,23 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import SupportModal from '@/components/SupportModal';
 import { useState } from 'react';
+import { Shield, FileText, HelpCircle, Trash2, LogOut, Info } from 'lucide-react-native';
 
 export default function SettingsScreen() {
   const { signOut } = useAuth();
   const router = useRouter();
   const [showSupportModal, setShowSupportModal] = useState(false);
+
+  const openPrivacyPolicy = () => {
+    router.push('/privacy');
+  };
+
+  const openTermsOfService = () => {
+    router.push('/terms-of-service');
+  };
 
   return (
     <View style={styles.container}>
@@ -23,21 +32,60 @@ export default function SettingsScreen() {
             style={styles.button}
             onPress={() => setShowSupportModal(true)}
           >
-            <Text style={styles.buttonText}>Support</Text>
+            <View style={styles.buttonContent}>
+              <HelpCircle size={20} color="#fff" />
+              <Text style={styles.buttonText}>Support</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={openPrivacyPolicy}
+          >
+            <View style={styles.buttonContent}>
+              <Shield size={20} color="#fff" />
+              <Text style={styles.buttonText}>Privacy Policy</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={openTermsOfService}
+          >
+            <View style={styles.buttonContent}>
+              <FileText size={20} color="#fff" />
+              <Text style={styles.buttonText}>Terms of Service</Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={styles.button}
             onPress={() => router.push('/data-deletion')}
           >
-            <Text style={styles.buttonText}>Request Data Deletion</Text>
+            <View style={styles.buttonContent}>
+              <Trash2 size={20} color="#fff" />
+              <Text style={styles.buttonText}>Request Data Deletion</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={() => router.push('/about')}
+          >
+            <View style={styles.buttonContent}>
+              <Info size={20} color="#fff" />
+              <Text style={styles.buttonText}>About BrutalSales</Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={[styles.button, styles.signOutButton]}
             onPress={signOut}
           >
-            <Text style={styles.buttonText}>Sign Out</Text>
+            <View style={styles.buttonContent}>
+              <LogOut size={20} color="#fff" />
+              <Text style={styles.buttonText}>Sign Out</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -64,7 +112,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontFamily: 'Cinzel-Bold',
     color: '#fff',
     marginBottom: 30,
   },
@@ -77,10 +125,16 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
+    fontFamily: 'Inter-Regular',
     textAlign: 'center',
   },
   signOutButton: {
     backgroundColor: 'rgba(255, 59, 48, 0.2)',
     marginTop: 'auto',
   },
-});
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+}); 

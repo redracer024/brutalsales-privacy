@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,17 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Switch,
+  Clipboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ArrowLeft, Wand as Wand2, Copy, Share, Smile, Briefcase, Zap, Laugh } from 'lucide-react-native';
+import { ArrowLeft, Wand as Wand2, Copy, Smile, Briefcase, Zap, Laugh } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
 import AdBanner from '@/components/AdBanner';
 import InterstitialAd from '@/components/InterstitialAd';
 import { useAdManager } from '@/hooks/useAdManager';
+import { supabase } from '@/lib/supabase';
 
 export default function CreateScreen() {
   const [formData, setFormData] = useState({
@@ -29,11 +32,61 @@ export default function CreateScreen() {
   const [generatedDescription, setGeneratedDescription] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPremium] = useState(false);
+  const [acceptOffers, setAcceptOffers] = useState(true);
+  const [userTerms, setUserTerms] = useState<string | null>(null);
 
   const adManager = useAdManager({
     isPremium,
     showInterstitialAfter: 1, // Show interstitial before generation
   });
+
+  useEffect(() => {
+    fetchUserTerms();
+  }, []);
+
+  const fetchUserTerms = async () => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        setUserTerms('Thank you for using our service. As a guest user, you have access to basic features.');
+        return;
+      }
+
+      if (!session?.user) {
+        // Guest mode - use default terms
+        setUserTerms('Thank you for using our service. As a guest user, you have access to basic features.');
+        return;
+      }
+
+      const { data: termsData, error } = await supabase
+        .from('user_terms')
+        .select('terms_text')
+        .eq('user_id', session.user.id)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No terms found for user
+          setUserTerms('Thank you for using our service.');
+        } else {
+          console.error('Error fetching terms:', error);
+          setUserTerms('Thank you for using our service. If you experience any issues, please contact support.');
+        }
+        return;
+      }
+
+      if (termsData?.terms_text) {
+        setUserTerms(termsData.terms_text);
+      } else {
+        setUserTerms('Thank you for using our service.');
+      }
+    } catch (error) {
+      console.error('Error fetching terms:', error);
+      setUserTerms('Thank you for using our service. If you experience any issues, please contact support.');
+    }
+  };
 
   const conditionOptions = [
     { label: 'New', value: 'new' },
@@ -69,6 +122,25 @@ export default function CreateScreen() {
     setIsGenerating(true);
     
     try {
+      // Fetch latest terms before generation
+      const { data: { user } } = await supabase.auth.getUser();
+      let currentTerms = null;
+      
+      if (user) {
+        const { data: termsData } = await supabase
+          .from('user_terms')
+          .select('terms_text')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (termsData?.terms_text) {
+          currentTerms = termsData.terms_text;
+          console.log('📝 Found user terms:', currentTerms);
+        } else {
+          console.log('⚠️ No terms found for user');
+        }
+      }
+
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
@@ -79,7 +151,8 @@ export default function CreateScreen() {
           model: formData.model,
           condition: formData.condition,
           itemDetails: formData.itemDetails,
-          tone: selectedTone, // Include tone in the request
+          tone: selectedTone,
+          acceptOffers,
         }),
       });
 
@@ -89,7 +162,12 @@ export default function CreateScreen() {
         throw new Error(data.error || 'Failed to generate description');
       }
 
-      setGeneratedDescription(data.description);
+      // Append terms if they exist
+      const finalDescription = currentTerms 
+        ? `${data.generatedText}\n\n---\n\n${currentTerms}`
+        : data.generatedText;
+
+      setGeneratedDescription(finalDescription);
       
       // Show success message if using DeepSeek API
       if (data.source === 'deepseek') {
@@ -110,11 +188,13 @@ export default function CreateScreen() {
   };
 
   const copyToClipboard = () => {
-    Alert.alert('Copied!', 'Description copied to clipboard');
-  };
-
-  const shareDescription = () => {
-    Alert.alert('Share', 'Share functionality coming soon!');
+    try {
+      Clipboard.setString(generatedDescription);
+      Alert.alert('Success', 'Description copied to clipboard');
+    } catch (error) {
+      console.error('Copy error:', error);
+      Alert.alert('Error', 'Failed to copy description');
+    }
   };
 
   const handleUpgradeToPremium = () => {
@@ -168,18 +248,21 @@ export default function CreateScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Condition</Text>
-              <View style={styles.pickerContainer}>
+              <View style={[styles.pickerContainer]} accessible={true}>
                 <Picker
                   selectedValue={formData.condition}
                   onValueChange={(value) => setFormData({ ...formData, condition: value })}
                   style={styles.picker}
                   dropdownIconColor="#D97706"
+                  accessibilityLabel="Select item condition"
                 >
                   {conditionOptions.map((option) => (
                     <Picker.Item
                       key={option.value}
                       label={option.label}
                       value={option.value}
+                      color="#FFFFFF"
+                      style={styles.pickerItem}
                     />
                   ))}
                 </Picker>
@@ -187,16 +270,26 @@ export default function CreateScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Item Details</Text>
+              <Text style={styles.inputLabel}>Additional Details</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea]}
                 value={formData.itemDetails}
                 onChangeText={(text) => setFormData({ ...formData, itemDetails: text })}
-                placeholder="Additional details, specifications, features..."
+                placeholder="Add any additional details about your item..."
                 placeholderTextColor="#6B7280"
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
+              />
+            </View>
+
+            <View style={styles.toggleContainer}>
+              <Text style={styles.toggleLabel}>Accept Offers</Text>
+              <Switch
+                value={acceptOffers}
+                onValueChange={setAcceptOffers}
+                trackColor={{ false: '#4B5563', true: '#D97706' }}
+                thumbColor="#FFFFFF"
               />
             </View>
 
@@ -263,9 +356,6 @@ export default function CreateScreen() {
                   <TouchableOpacity style={styles.actionButton} onPress={copyToClipboard}>
                     <Copy size={20} color="#D97706" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton} onPress={shareDescription}>
-                    <Share size={20} color="#D97706" />
-                  </TouchableOpacity>
                 </View>
               </View>
               
@@ -308,9 +398,9 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   headerTitle: {
-    fontSize: 20,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
+    fontSize: 28,
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
   },
   placeholder: {
     width: 40,
@@ -332,8 +422,8 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
     marginBottom: 8,
   },
   textInput: {
@@ -353,12 +443,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(217, 119, 6, 0.3)',
     overflow: 'hidden',
   },
   picker: {
     color: '#FFFFFF',
     backgroundColor: 'transparent',
+    height: 50,
+  },
+  pickerItem: {
+    backgroundColor: '#1F2937',
+    color: '#FFFFFF',
+    fontFamily: 'Inter-Regular',
   },
   toneContainer: {
     marginBottom: 20,
@@ -383,8 +479,8 @@ const styles = StyleSheet.create({
   },
   toneLabel: {
     fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#C4B5FD',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
     marginTop: 8,
   },
   toneLabelSelected: {
@@ -426,8 +522,8 @@ const styles = StyleSheet.create({
   },
   resultTitle: {
     fontSize: 18,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
   },
   resultActions: {
     flexDirection: 'row',
@@ -450,5 +546,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: '#E5E7EB',
     lineHeight: 20,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    color: '#FFFFFF',
   },
 });

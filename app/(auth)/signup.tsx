@@ -8,11 +8,14 @@ import {
   SafeAreaView,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Crown, Mail, Lock, User, ArrowLeft } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import Constants from 'expo-constants';
+import GoogleSignIn from '@/components/GoogleSignIn';
 
 export default function SignupScreen() {
   const [formData, setFormData] = useState({
@@ -51,6 +54,15 @@ export default function SignupScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const getRedirectUrl = () => {
+    if (Platform.OS === 'web') {
+      const scheme = window.location.protocol;
+      const host = window.location.host;
+      return `${scheme}//${host}/auth/callback`;
+    }
+    return Constants.expoConfig?.web?.auth?.redirectUrl || 'http://localhost:8082/auth/callback';
+  };
+
   const handleSignup = async () => {
     if (!validateForm()) return;
 
@@ -58,6 +70,7 @@ export default function SignupScreen() {
     setErrors({});
 
     try {
+      console.log('Starting signup process...');
       const { data, error } = await supabase.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
@@ -65,10 +78,14 @@ export default function SignupScreen() {
           data: {
             full_name: formData.fullName.trim(),
           },
+          emailRedirectTo: getRedirectUrl(),
         },
       });
 
+      console.log('Signup response:', { data, error });
+
       if (error) {
+        console.error('Signup error:', error);
         if (error.message.includes('already registered')) {
           setErrors({ email: 'This email is already registered. Try signing in instead.' });
         } else {
@@ -78,11 +95,27 @@ export default function SignupScreen() {
       }
 
       if (data.user) {
-        // Account created successfully
-        router.replace('/(tabs)');
+        if (data.session) {
+          // User is signed in immediately
+          console.log('User signed in immediately:', data.session);
+          router.replace('/(tabs)');
+        } else {
+          // Email confirmation required
+          console.log('Email confirmation required');
+          Alert.alert(
+            'Check your email',
+            'We sent you a confirmation email. Please check your inbox and confirm your email address to continue.',
+            [
+              {
+                text: 'OK',
+                onPress: () => router.replace('/(auth)/login')
+              }
+            ]
+          );
+        }
       }
     } catch (error: any) {
-      console.error('Signup error:', error);
+      console.error('Unexpected signup error:', error);
       setErrors({ general: 'An unexpected error occurred. Please try again.' });
     } finally {
       setIsLoading(false);
@@ -205,14 +238,40 @@ export default function SignupScreen() {
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
-          </View>
 
-          {/* Login Link */}
-          <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>Already have an account? </Text>
-            <TouchableOpacity onPress={navigateToLogin}>
-              <Text style={styles.loginLink}>Sign In</Text>
-            </TouchableOpacity>
+            <GoogleSignIn
+              onSuccess={async (userInfo) => {
+                try {
+                  const { data, error } = await supabase.auth.signInWithIdToken({
+                    provider: 'google',
+                    token: userInfo.id_token,
+                  });
+
+                  if (error) {
+                    Alert.alert('Error', error.message);
+                    return;
+                  }
+
+                  if (data.session) {
+                    router.replace('/(tabs)');
+                  }
+                } catch (error: any) {
+                  console.error('Google sign in error:', error);
+                  Alert.alert('Error', error.message || 'Failed to sign in with Google');
+                }
+              }}
+              onError={(error) => {
+                Alert.alert('Error', error);
+              }}
+              isLoading={isLoading}
+            />
+
+            <View style={styles.loginPrompt}>
+              <Text style={styles.loginText}>Already have an account?</Text>
+              <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
+                <Text style={styles.loginLink}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </LinearGradient>
@@ -328,10 +387,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     color: '#FFFFFF',
   },
-  loginContainer: {
+  loginPrompt: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 10,
   },
   loginText: {
     fontSize: 16,

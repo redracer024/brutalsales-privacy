@@ -11,7 +11,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Crown, Smartphone } from 'lucide-react-native';
 import { useGooglePlayBilling } from '@/hooks/useGooglePlayBilling';
-import { GOOGLE_PLAY_PRODUCTS } from '@/lib/googlePlayBilling';
+import { GooglePlayBilling } from '@/lib/googlePlayBilling';
 
 interface GooglePlayPurchaseButtonProps {
   onPurchaseSuccess?: () => void;
@@ -49,7 +49,7 @@ export default function GooglePlayPurchaseButton({
     setIsPurchasing(true);
 
     try {
-      const purchase = await purchaseProduct(GOOGLE_PLAY_PRODUCTS.PREMIUM_MONTHLY);
+      const purchase = await purchaseProduct(GooglePlayBilling.GOOGLE_PLAY_PRODUCTS.PREMIUM_MONTHLY);
       
       if (purchase) {
         Alert.alert(

@@ -16,12 +16,24 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
+import { Platform, View, ActivityIndicator } from 'react-native';
+import { GooglePlayBilling } from '../lib/googlePlayBilling';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import { AuthProvider } from '@/lib/auth';
+import { usePathname } from 'expo-router';
+import { analyticsService, ANALYTICS_EVENTS } from '../lib/analytics';
+import DevMenu from '@/components/DevMenu';
+import AnalyticsDashboard from '@/components/AnalyticsDashboard';
+import AnalyticsReport from '@/components/AnalyticsReport';
 
+// Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   useFrameworkReady();
-  const [session, setSession] = useState<Session | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const pathname = usePathname();
 
   const [fontsLoaded, fontError] = useFonts({
     'Cinzel-Regular': Cinzel_400Regular,
@@ -30,41 +42,141 @@ export default function RootLayout() {
     'Inter-Regular': Inter_400Regular,
     'Inter-Medium': Inter_500Medium,
     'Inter-SemiBold': Inter_600SemiBold,
+    'EagleLake-Regular': require('../assets/fonts/EagleLake-Regular.ttf'),
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
+    async function prepare() {
+      try {
+        // Initialize services
+        if (Platform.OS === 'android') {
+          await GooglePlayBilling.GooglePlayBilling.initConnection();
+        }
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+        // Pre-fetch any data or assets here
+        await Promise.all([
+          // Add any other initialization promises here
+        ]);
+      } catch (error) {
+        console.error('Error preparing app:', error);
+      } finally {
+        setIsReady(true);
+      }
+    }
 
-    return () => subscription.unsubscribe();
+    prepare();
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    if ((fontsLoaded || fontError) && isReady) {
+      // Hide splash screen once everything is ready
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, isReady]);
 
-  if (!fontsLoaded && !fontError) {
-    return null;
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      if (Platform.OS === 'android') {
+        GooglePlayBilling.GooglePlayBilling.endConnection().catch(console.error);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    // Track app open
+    analyticsService.logEvent(ANALYTICS_EVENTS.APP_OPEN, {
+      timestamp: Date.now()
+    });
+  }, []);
+
+  useEffect(() => {
+    // Track screen views
+    analyticsService.logScreenView(pathname);
+  }, [pathname]);
+
+  if (!fontsLoaded || !isReady) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F0A19' }}>
+        <ActivityIndicator size="large" color="#D97706" />
+      </View>
+    );
   }
 
   return (
-    <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="success" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="light" />
-    </>
+    <ErrorBoundary>
+      <AuthProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen 
+            name="(auth)" 
+            options={{ 
+              headerShown: false,
+              animation: 'fade',
+            }} 
+          />
+          <Stack.Screen 
+            name="(tabs)" 
+            options={{ 
+              headerShown: false,
+              animation: 'fade',
+            }} 
+          />
+          <Stack.Screen 
+            name="success" 
+            options={{ 
+              headerShown: false,
+              animation: 'slide_from_bottom',
+            }} 
+          />
+          <Stack.Screen 
+            name="terms" 
+            options={{ 
+              headerShown: false,
+              animation: 'slide_from_bottom',
+            }} 
+          />
+          <Stack.Screen 
+            name="features" 
+            options={{ 
+              headerShown: false,
+              animation: 'slide_from_bottom',
+            }} 
+          />
+          <Stack.Screen 
+            name="+not-found" 
+            options={{
+              presentation: 'modal',
+              animation: 'fade',
+            }}
+          />
+        </Stack>
+        {__DEV__ && (
+          <>
+            <AnalyticsDashboard />
+            {showReport && (
+              <View style={{ 
+                position: 'absolute', 
+                top: 0, 
+                left: 0, 
+                right: 0, 
+                bottom: 0, 
+                backgroundColor: 'white' 
+              }}>
+                <AnalyticsReport />
+              </View>
+            )}
+            <DevMenu 
+              extraButtons={[
+                {
+                  title: 'Analytics Report',
+                  onPress: () => setShowReport(!showReport)
+                }
+              ]}
+            />
+          </>
+        )}
+        <StatusBar style="light" />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

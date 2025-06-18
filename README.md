@@ -1,127 +1,183 @@
-# BrutalSales - AI-Powered Sales Description Generator
+# Supabase CLI
 
-Transform your product listings with AI-generated descriptions that drive sales and engagement.
+[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
+](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
 
-## Features
+[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
 
-- 🤖 AI-powered description generation using DeepSeek
-- ✨ Text rewriting with multiple tone options
-- 📱 Cross-platform mobile app (iOS & Android)
-- 🔐 Google OAuth authentication
-- 💰 Freemium model with premium subscriptions
-- 📊 Ad-supported free tier
-- 🎯 Professional sales copy optimization
+This repository contains all the functionality for Supabase CLI.
 
-## Getting Started
+- [x] Running Supabase locally
+- [x] Managing database migrations
+- [x] Creating and deploying Supabase Functions
+- [x] Generating types directly from your database schema
+- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
 
-### Prerequisites
+## Getting started
 
-- Node.js 18+ 
-- Expo CLI
-- EAS CLI (for building and deployment)
+### Install the CLI
 
-### Installation
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Copy environment variables:
-   ```bash
-   cp .env.example .env
-   ```
-
-4. Fill in your API keys and configuration in `.env`
-
-5. Start the development server:
-   ```bash
-   npm start
-   ```
-
-## Environment Setup
-
-### Required API Keys
-
-1. **DeepSeek API**: Get your API key from [DeepSeek](https://platform.deepseek.com)
-2. **Google OAuth**: Set up OAuth credentials in [Google Cloud Console](https://console.cloud.google.com)
-3. **EAS Project**: Create a project at [Expo Application Services](https://expo.dev)
-
-### Google OAuth Setup
-
-1. Go to Google Cloud Console
-2. Create a new project or select existing
-3. Enable Google+ API
-4. Create OAuth 2.0 credentials
-5. Add your bundle identifier: `com.brutalsales.app`
-6. Add redirect URIs for your app scheme
-
-## Building for Production
-
-### Android
+Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
 
 ```bash
-npm run build:android
+npm i supabase --save-dev
 ```
 
-### iOS
+To install the beta release channel:
 
 ```bash
-npm run build:ios
+npm i supabase@beta --save-dev
 ```
 
-## Deployment
+When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
 
-### App Stores
+```
+NODE_OPTIONS=--no-experimental-fetch yarn add supabase
+```
+
+> **Note**
+For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
+
+<details>
+  <summary><b>macOS</b></summary>
+
+  Available via [Homebrew](https://brew.sh). To install:
+
+  ```sh
+  brew install supabase/tap/supabase
+  ```
+
+  To install the beta release channel:
+  
+  ```sh
+  brew install supabase/tap/supabase-beta
+  brew link --overwrite supabase-beta
+  ```
+  
+  To upgrade:
+
+  ```sh
+  brew upgrade supabase
+  ```
+</details>
+
+<details>
+  <summary><b>Windows</b></summary>
+
+  Available via [Scoop](https://scoop.sh). To install:
+
+  ```powershell
+  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+  scoop install supabase
+  ```
+
+  To upgrade:
+
+  ```powershell
+  scoop update supabase
+  ```
+</details>
+
+<details>
+  <summary><b>Linux</b></summary>
+
+  Available via [Homebrew](https://brew.sh) and Linux packages.
+
+  #### via Homebrew
+
+  To install:
+
+  ```sh
+  brew install supabase/tap/supabase
+  ```
+
+  To upgrade:
+
+  ```sh
+  brew upgrade supabase
+  ```
+
+  #### via Linux packages
+
+  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
+
+  ```sh
+  sudo apk add --allow-untrusted <...>.apk
+  ```
+
+  ```sh
+  sudo dpkg -i <...>.deb
+  ```
+
+  ```sh
+  sudo rpm -i <...>.rpm
+  ```
+
+  ```sh
+  sudo pacman -U <...>.pkg.tar.zst
+  ```
+</details>
+
+<details>
+  <summary><b>Other Platforms</b></summary>
+
+  You can also install the CLI via [go modules](https://go.dev/ref/mod#go-install) without the help of package managers.
+
+  ```sh
+  go install github.com/supabase/cli@latest
+  ```
+
+  Add a symlink to the binary in `$PATH` for easier access:
+
+  ```sh
+  ln -s "$(go env GOPATH)/bin/cli" /usr/bin/supabase
+  ```
+
+  This works on other non-standard Linux distros.
+</details>
+
+<details>
+  <summary><b>Community Maintained Packages</b></summary>
+
+  Available via [pkgx](https://pkgx.sh/). Package script [here](https://github.com/pkgxdev/pantry/blob/main/projects/supabase.com/cli/package.yml).
+  To install in your working directory:
+
+  ```bash
+  pkgx install supabase
+  ```
+
+  Available via [Nixpkgs](https://nixos.org/). Package script [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/tools/supabase-cli/default.nix).
+</details>
+
+### Run the CLI
 
 ```bash
-# Android
-npm run submit:android
-
-# iOS  
-npm run submit:ios
+supabase bootstrap
 ```
 
-### Web
+Or using npx:
 
 ```bash
-npm run build:web
+npx supabase bootstrap
 ```
 
-## Monetization
+The bootstrap command will guide you through the process of setting up a Supabase project using one of the [starter](https://github.com/supabase-community/supabase-samples/blob/main/samples.json) templates.
 
-- **Free Tier**: 3 descriptions per day with ads
-- **Premium**: $9.99/month for unlimited descriptions and ad-free experience
-- **Revenue Streams**: Subscriptions, sponsored content, affiliate partnerships
+## Docs
 
-## Tech Stack
+Command & config reference can be found [here](https://supabase.com/docs/reference/cli/about).
 
-- **Frontend**: React Native with Expo
-- **Navigation**: Expo Router
-- **AI**: DeepSeek API
-- **Authentication**: Google OAuth
-- **Payments**: RevenueCat (recommended for production)
-- **Analytics**: Firebase Analytics (recommended)
-- **Crash Reporting**: Firebase Crashlytics (recommended)
+## Breaking changes
 
-## Pre-Launch Checklist
+We follow semantic versioning for changes that directly impact CLI commands, flags, and configurations.
 
-- [ ] Set up Google OAuth credentials
-- [ ] Configure DeepSeek API
-- [ ] Set up EAS project
-- [ ] Configure app store metadata
-- [ ] Set up analytics and crash reporting
-- [ ] Test payment flows
-- [ ] Prepare marketing materials
-- [ ] Set up customer support system
-- [ ] Configure privacy policy and terms of service
-- [ ] Test on real devices
+However, due to dependencies on other service images, we cannot guarantee that schema migrations, seed.sql, and generated types will always work for the same CLI major version. If you need such guarantees, we encourage you to pin a specific version of CLI in package.json.
 
-## Support
+## Developing
 
-For support, email support@brutalsales.com or use the in-app support feature.
+To run from source:
 
-## License
-
-Proprietary - All rights reserved# brutalsales-project
+```sh
+# Go >= 1.22
+go run . help
+```

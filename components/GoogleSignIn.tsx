@@ -1,88 +1,31 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, Image, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri, useAuthRequest } from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// Google OAuth discovery document
-const discovery = {
-  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-  tokenEndpoint: 'https://www.googleapis.com/oauth2/v4/token',
-  revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-};
-
 interface GoogleSignInProps {
-  onSuccess: (userInfo: any) => void;
   onError: (error: string) => void;
   isLoading?: boolean;
 }
 
-export default function GoogleSignIn({ onSuccess, onError, isLoading }: GoogleSignInProps) {
+export default function GoogleSignIn({ onError, isLoading }: GoogleSignInProps) {
   const [isSigningIn, setIsSigningIn] = useState(false);
 
-  const [request, response, promptAsync] = useAuthRequest(
-    {
-      clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-      scopes: ['openid', 'profile', 'email'],
-      redirectUri: makeRedirectUri({
-        scheme: 'brutalsales',
-        path: 'auth',
-      }),
-    },
-    discovery
-  );
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: '1086197989974-ukknjt4bc0ucb9dbtuoo7fo3chfo48ha.apps.googleusercontent.com',
+    scopes: ['openid', 'profile', 'email'],
+  });
 
   React.useEffect(() => {
-    if (response?.type === 'success') {
-      handleAuthSuccess(response.params.code);
-    } else if (response?.type === 'error') {
+    if (response?.type === 'error') {
       onError('Authentication failed');
       setIsSigningIn(false);
     }
   }, [response]);
-
-  const handleAuthSuccess = async (code: string) => {
-    try {
-      // Exchange code for tokens
-      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID!,
-          client_secret: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET!,
-          code,
-          grant_type: 'authorization_code',
-          redirect_uri: makeRedirectUri({
-            scheme: 'brutalsales',
-            path: 'auth',
-          }),
-        }),
-      });
-
-      const tokens = await tokenResponse.json();
-
-      if (tokens.access_token) {
-        // Get user info
-        const userResponse = await fetch(
-          `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${tokens.access_token}`
-        );
-        const userInfo = await userResponse.json();
-        
-        onSuccess(userInfo);
-      } else {
-        throw new Error('No access token received');
-      }
-    } catch (error) {
-      console.error('Auth error:', error);
-      onError('Failed to complete authentication');
-    } finally {
-      setIsSigningIn(false);
-    }
-  };
 
   const handleSignIn = async () => {
     setIsSigningIn(true);
@@ -95,6 +38,11 @@ export default function GoogleSignIn({ onSuccess, onError, isLoading }: GoogleSi
     }
   };
 
+  // Don't render on web platform
+  if (Platform.OS === 'web') {
+    return null;
+  }
+
   return (
     <TouchableOpacity
       style={[styles.button, (isLoading || isSigningIn) && styles.buttonDisabled]}
@@ -102,9 +50,15 @@ export default function GoogleSignIn({ onSuccess, onError, isLoading }: GoogleSi
       disabled={isLoading || isSigningIn || !request}
     >
       <LinearGradient
-        colors={['#D97706', '#F59E0B']}
+        colors={['#4285F4', '#34A853', '#FBBC05', '#EA4335']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
+        <Image
+          source={require('../assets/images/google-logo.png')}
+          style={styles.googleIcon}
+        />
         <Text style={styles.buttonText}>
           {isSigningIn ? 'Signing in...' : 'Sign in with Google'}
         </Text>
@@ -118,11 +72,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 16,
+    marginHorizontal: 16,
   },
   gradient: {
     paddingVertical: 16,
     paddingHorizontal: 24,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -131,5 +88,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     color: '#FFFFFF',
+    marginLeft: 12,
   },
+  googleIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 8,
+  }
 });

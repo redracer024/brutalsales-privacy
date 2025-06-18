@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,45 +8,161 @@ import {
   SafeAreaView,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Save, FileText, Truck, RotateCcw, Shield, ArrowLeft } from 'lucide-react-native';
-import AdBanner from '@/components/AdBanner';
+import { Save, FileText, Truck, RotateCcw, Shield, ArrowLeft, Zap } from 'lucide-react-native';
+import { supabase } from '@/lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function TermsScreen() {
-  const [termsData, setTermsData] = useState({
+  const [terms, setTerms] = useState({
     storeName: '',
     storeDescription: '',
-    returnPolicy: '',
-    shippingInfo: '',
-    warrantyInfo: '',
-    contactInfo: '',
+    returnPolicy: 'All sales are final unless the item is defective.',
+    shippingInfo: 'Standard shipping within 2-5 business days.',
+    warrantyInfo: '30-day limited warranty covering manufacturing defects.',
+    contactInfo: 'Contact us via email or through our website.',
   });
-
   const [isSaving, setIsSaving] = useState(false);
-  const [isPremium] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    
-    // Simulate saving
-    setTimeout(() => {
-      setIsSaving(false);
-      Alert.alert('Success!', 'Your terms of sale have been saved and will be automatically added to all future descriptions.');
-    }, 1000);
+  // Load terms on mount
+  useEffect(() => {
+    loadTerms();
+  }, []);
+
+  const loadTerms = async () => {
+    try {
+      // First try to load from AsyncStorage (guest mode)
+      const guestTerms = await AsyncStorage.getItem('guest_terms');
+      if (guestTerms) {
+        const parsedTerms = JSON.parse(guestTerms);
+        setTerms({
+          storeName: parsedTerms.store_name || '',
+          storeDescription: parsedTerms.store_description || '',
+          returnPolicy: parsedTerms.return_policy || terms.returnPolicy,
+          shippingInfo: parsedTerms.shipping_info || terms.shippingInfo,
+          warrantyInfo: parsedTerms.warranty_info || terms.warrantyInfo,
+          contactInfo: parsedTerms.contact_info || terms.contactInfo,
+        });
+        return;
+      }
+
+      // If no guest terms, try to load from database
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        return;
+      }
+
+      if (!session?.user) {
+        console.log('No active session - using default terms');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('user_terms')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.log('No existing terms found for user');
+        } else {
+          console.error('Error loading terms:', error);
+          Alert.alert('Error', 'Failed to load your saved terms. Using default values.');
+        }
+        return;
+      }
+
+      if (data) {
+        setTerms({
+          storeName: data.store_name || '',
+          storeDescription: data.store_description || '',
+          returnPolicy: data.return_policy || terms.returnPolicy,
+          shippingInfo: data.shipping_info || terms.shippingInfo,
+          warrantyInfo: data.warranty_info || terms.warrantyInfo,
+          contactInfo: data.contact_info || terms.contactInfo,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading terms:', error);
+      Alert.alert('Error', 'An unexpected error occurred while loading your terms.');
+    }
   };
 
-  const loadTemplate = () => {
-    setTermsData({
-      storeName: 'BrutalSales Store',
-      storeDescription: 'Your trusted marketplace for quality items with exceptional service.',
-      returnPolicy: '30-day return policy. Items must be in original condition. Buyer pays return shipping unless item is defective.',
-      shippingInfo: 'Fast and secure shipping available. Orders processed within 1-2 business days. Tracking provided for all shipments.',
-      warrantyInfo: 'All items come with standard manufacturer warranty unless otherwise specified. Extended warranties available upon request.',
-      contactInfo: 'Questions? Contact us at support@brutalsales.com or call 1-800-BRUTAL1. We\'re here to help!',
-    });
-    Alert.alert('Template Loaded', 'Default template has been loaded. Feel free to customize as needed.');
+  const handleSave = async () => {
+    console.log('🔍 Save button pressed - debugging session...')
+    
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      console.log('📊 Session data:', JSON.stringify(session, null, 2))
+      
+      if (!session?.user) {
+        console.log('❌ No active session - saving in guest mode')
+        try {
+          const guestTerms = {
+            store_name: terms.storeName,
+            store_description: terms.storeDescription,
+            return_policy: terms.returnPolicy,
+            shipping_info: terms.shippingInfo,
+            warranty_info: terms.warrantyInfo,
+            contact_info: terms.contactInfo,
+            terms_text: formatPreview(),
+            created_at: new Date().toISOString()
+          };
+          await AsyncStorage.setItem('guest_terms', JSON.stringify(guestTerms));
+          Alert.alert('Success', 'Terms saved in guest mode');
+        } catch (storageError) {
+          console.error('Error saving guest terms:', storageError);
+          Alert.alert('Error', 'Failed to save terms in guest mode');
+        }
+        return;
+      }
+
+      // User is logged in, save to database
+      const { error: upsertError } = await supabase
+        .from('user_terms')
+        .upsert({
+          user_id: session.user.id,
+          store_name: terms.storeName,
+          store_description: terms.storeDescription,
+          return_policy: terms.returnPolicy,
+          shipping_info: terms.shippingInfo,
+          warranty_info: terms.warrantyInfo,
+          contact_info: terms.contactInfo,
+          terms_text: formatPreview(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (upsertError) {
+        console.error('Error saving terms:', upsertError);
+        Alert.alert('Error', 'Failed to save terms. Please try again.');
+        return;
+      }
+
+      Alert.alert('Success', 'Terms saved successfully');
+    } catch (error) {
+      console.error('Error in handleSave:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    }
+  };
+
+  const formatPreview = () => {
+    const sections = [];
+    if (terms.storeName) sections.push(`Seller: ${terms.storeName}`);
+    if (terms.storeDescription) sections.push(terms.storeDescription);
+    if (terms.returnPolicy) sections.push(`Returns: ${terms.returnPolicy}`);
+    if (terms.shippingInfo) sections.push(`Shipping: ${terms.shippingInfo}`);
+    if (terms.warrantyInfo) sections.push(`Warranty: ${terms.warrantyInfo}`);
+    if (terms.contactInfo) sections.push(`Contact: ${terms.contactInfo}`);
+    return sections.join('\n\n');
   };
 
   return (
@@ -55,9 +171,7 @@ export default function TermsScreen() {
         colors={['#0F0A19', '#1E1B4B', '#312E81']}
         style={styles.gradient}
       >
-        {/* Ad Banner */}
-        <AdBanner isPremium={isPremium} />
-
+        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
@@ -69,180 +183,123 @@ export default function TermsScreen() {
           <View style={styles.placeholder} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Header */}
-          <View style={styles.pageHeader}>
-            <FileText size={32} color="#D97706" />
-            <Text style={styles.title}>Terms of Sale</Text>
-            <Text style={styles.subtitle}>
-              Set up your standard terms that will be automatically added to all descriptions
+        <ScrollView style={styles.scrollView}>
+          <View style={styles.content}>
+            <Text style={styles.description}>
+              Set up your standard terms that will be automatically added to all your product descriptions
             </Text>
-          </View>
 
-          {/* Quick Actions */}
-          <View style={styles.actionsContainer}>
-            <TouchableOpacity style={styles.templateButton} onPress={loadTemplate}>
-              <Text style={styles.templateButtonText}>Load Template</Text>
+            {/* Preview Toggle */}
+            <TouchableOpacity 
+              style={styles.previewButton} 
+              onPress={() => setShowPreview(!showPreview)}
+            >
+              <Text style={styles.buttonText}>
+                {showPreview ? 'Hide Preview' : 'Show Preview'}
+              </Text>
             </TouchableOpacity>
-          </View>
 
-          {/* Form Sections */}
-          <View style={styles.formContainer}>
-            {/* Store Information */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Shield size={20} color="#D97706" />
-                <Text style={styles.sectionTitle}>Store Information</Text>
+            {/* Preview */}
+            {showPreview && (
+              <View style={styles.previewBox}>
+                <Text style={styles.previewText}>{formatPreview()}</Text>
               </View>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Store Name</Text>
+            )}
+
+            {/* Form */}
+            <View style={styles.form}>
+              <View style={styles.field}>
+                <Text style={styles.label}>Store Name</Text>
                 <TextInput
-                  style={styles.textInput}
-                  value={termsData.storeName}
-                  onChangeText={(text) => setTermsData({ ...termsData, storeName: text })}
-                  placeholder="Your store or business name"
+                  style={styles.input}
+                  value={terms.storeName}
+                  onChangeText={(text) => setTerms(prev => ({ ...prev, storeName: text }))}
+                  placeholder="Your store name"
                   placeholderTextColor="#6B7280"
                 />
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Store Description</Text>
+              <View style={styles.field}>
+                <Text style={styles.label}>Store Description</Text>
                 <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  value={termsData.storeDescription}
-                  onChangeText={(text) => setTermsData({ ...termsData, storeDescription: text })}
-                  placeholder="Brief description of your store and what makes it special"
-                  placeholderTextColor="#6B7280"
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </View>
-            </View>
-
-            {/* Return Policy */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <RotateCcw size={20} color="#D97706" />
-                <Text style={styles.sectionTitle}>Return Policy</Text>
-              </View>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Return Terms</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  value={termsData.returnPolicy}
-                  onChangeText={(text) => setTermsData({ ...termsData, returnPolicy: text })}
-                  placeholder="Describe your return policy, time limits, conditions, etc."
+                  style={[styles.input, styles.textArea]}
+                  value={terms.storeDescription}
+                  onChangeText={(text) => setTerms(prev => ({ ...prev, storeDescription: text }))}
+                  placeholder="Brief description of your store"
                   placeholderTextColor="#6B7280"
                   multiline
                   numberOfLines={4}
-                  textAlignVertical="top"
                 />
               </View>
-            </View>
 
-            {/* Shipping Information */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Truck size={20} color="#D97706" />
-                <Text style={styles.sectionTitle}>Shipping Information</Text>
-              </View>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Shipping Details</Text>
+              <View style={styles.field}>
+                <Text style={styles.label}>Return Policy</Text>
                 <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  value={termsData.shippingInfo}
-                  onChangeText={(text) => setTermsData({ ...termsData, shippingInfo: text })}
-                  placeholder="Shipping methods, timeframes, costs, packaging details, etc."
+                  style={[styles.input, styles.textArea]}
+                  value={terms.returnPolicy}
+                  onChangeText={(text) => setTerms(prev => ({ ...prev, returnPolicy: text }))}
+                  placeholder="Your return policy"
                   placeholderTextColor="#6B7280"
                   multiline
                   numberOfLines={4}
-                  textAlignVertical="top"
                 />
               </View>
-            </View>
 
-            {/* Warranty Information */}
-            <View style={styles.section}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Warranty & Guarantees</Text>
+              <View style={styles.field}>
+                <Text style={styles.label}>Shipping Information</Text>
                 <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  value={termsData.warrantyInfo}
-                  onChangeText={(text) => setTermsData({ ...termsData, warrantyInfo: text })}
-                  placeholder="Warranty information, guarantees, quality assurance details"
+                  style={[styles.input, styles.textArea]}
+                  value={terms.shippingInfo}
+                  onChangeText={(text) => setTerms(prev => ({ ...prev, shippingInfo: text }))}
+                  placeholder="Your shipping information"
                   placeholderTextColor="#6B7280"
                   multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
+                  numberOfLines={4}
                 />
               </View>
-            </View>
 
-            {/* Contact Information */}
-            <View style={styles.section}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Contact Information</Text>
+              <View style={styles.field}>
+                <Text style={styles.label}>Warranty Information</Text>
                 <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  value={termsData.contactInfo}
-                  onChangeText={(text) => setTermsData({ ...termsData, contactInfo: text })}
-                  placeholder="How customers can reach you for questions or support"
+                  style={[styles.input, styles.textArea]}
+                  value={terms.warrantyInfo}
+                  onChangeText={(text) => setTerms(prev => ({ ...prev, warrantyInfo: text }))}
+                  placeholder="Your warranty information"
                   placeholderTextColor="#6B7280"
                   multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
+                  numberOfLines={4}
+                />
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>Contact Information</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={terms.contactInfo}
+                  onChangeText={(text) => setTerms(prev => ({ ...prev, contactInfo: text }))}
+                  placeholder="Your contact information"
+                  placeholderTextColor="#6B7280"
+                  multiline
+                  numberOfLines={4}
                 />
               </View>
             </View>
           </View>
+        </ScrollView>
 
-          {/* Save Button */}
-          <TouchableOpacity
+        {/* Save Button */}
+        <View style={styles.bottomNav}>
+          <TouchableOpacity 
             style={[styles.saveButton, isSaving && styles.buttonDisabled]}
             onPress={handleSave}
             disabled={isSaving}
           >
-            <LinearGradient
-              colors={['#D97706', '#F59E0B']}
-              style={styles.buttonGradient}
-            >
-              <Save size={20} color="#FFFFFF" />
-              <Text style={styles.saveButtonText}>
-                {isSaving ? 'Saving...' : 'Save Terms of Sale'}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          {/* Preview */}
-          <View style={styles.previewContainer}>
-            <Text style={styles.previewTitle}>Preview</Text>
-            <Text style={styles.previewSubtitle}>
-              This is how your terms will appear at the end of each description:
+            <Save size={24} color="#FFFFFF" />
+            <Text style={styles.buttonText}>
+              {isSaving ? 'Saving...' : 'Save Terms'}
             </Text>
-            
-            <View style={styles.previewBox}>
-              <Text style={styles.previewText}>
-                {`---
-📊 TERMS OF SALE
-
-🏪 ${termsData.storeName || '[Store Name]'}
-${termsData.storeDescription || '[Store Description]'}
-
-↩️ RETURNS: ${termsData.returnPolicy || '[Return Policy]'}
-
-🚚 SHIPPING: ${termsData.shippingInfo || '[Shipping Information]'}
-
-🛡️ WARRANTY: ${termsData.warrantyInfo || '[Warranty Information]'}
-
-📞 CONTACT: ${termsData.contactInfo || '[Contact Information]'}`}
-              </Text>
-            </View>
-          </View>
-        </ScrollView>
+          </TouchableOpacity>
+        </View>
       </LinearGradient>
     </SafeAreaView>
   );
@@ -251,6 +308,7 @@ ${termsData.storeDescription || '[Store Description]'}
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0F0A19',
   },
   gradient: {
     flex: 1,
@@ -259,157 +317,95 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
   backButton: {
     padding: 8,
   },
   headerTitle: {
-    fontSize: 20,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
+    fontSize: 24,
+    color: '#D97706',
+    fontFamily: 'EagleLake-Regular',
   },
   placeholder: {
     width: 40,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+  scrollView: {
+    flex: 1,
   },
-  pageHeader: {
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 30,
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: 'Cinzel-Bold',
-    color: '#FFFFFF',
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#A78BFA',
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  actionsContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  templateButton: {
-    backgroundColor: 'rgba(217, 119, 6, 0.2)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#D97706',
-  },
-  templateButtonText: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#D97706',
-  },
-  formContainer: {
-    marginBottom: 24,
-  },
-  section: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(217, 119, 6, 0.3)',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
-    marginLeft: 12,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#C4B5FD',
-    marginBottom: 8,
-  },
-  textInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
+  content: {
     padding: 16,
+  },
+  description: {
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
+    color: '#9CA3AF',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  previewButton: {
+    backgroundColor: '#1E1B4B',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  previewBox: {
+    backgroundColor: 'rgba(30, 27, 75, 0.5)',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 24,
+  },
+  previewText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  form: {
+    gap: 20,
+  },
+  field: {
+    gap: 8,
+  },
+  label: {
+    color: '#D97706',
+    fontSize: 16,
+    fontFamily: 'EagleLake-Regular',
+  },
+  input: {
+    backgroundColor: 'rgba(15, 10, 25, 0.8)',
+    borderRadius: 8,
+    padding: 12,
     color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(49, 46, 129, 0.5)',
   },
   textArea: {
-    height: 80,
+    minHeight: 100,
     textAlignVertical: 'top',
   },
-  saveButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 24,
+  bottomNav: {
+    padding: 16,
+    backgroundColor: 'rgba(15, 10, 25, 0.8)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(49, 46, 129, 0.5)',
   },
-  buttonGradient: {
+  saveButton: {
+    backgroundColor: '#D97706',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    padding: 16,
+    borderRadius: 12,
     gap: 8,
   },
   buttonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
-  },
-  previewContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  previewTitle: {
-    fontSize: 18,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  previewSubtitle: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#A78BFA',
-    marginBottom: 16,
-  },
-  previewBox: {
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 12,
-    padding: 16,
-  },
-  previewText: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#E5E7EB',
-    lineHeight: 18,
+    opacity: 0.5,
   },
 });

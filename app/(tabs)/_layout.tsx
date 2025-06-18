@@ -1,34 +1,57 @@
+import React from 'react';
 import { Tabs } from 'expo-router';
 import { Chrome as Home, CreditCard as Edit3, FileText, Crown, Settings } from 'lucide-react-native';
+import { Platform, useColorScheme } from 'react-native';
+import { FontAwesome } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function TabLayout() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
+        tabBarActiveTintColor: '#D97706',
+        tabBarInactiveTintColor: isDark ? '#6B7280' : '#9CA3AF',
         tabBarStyle: {
-          backgroundColor: '#0F0A19',
-          borderTopColor: 'rgba(217, 119, 6, 0.3)',
+          backgroundColor: 'rgba(15, 10, 25, 0.95)',
+          borderTopColor: 'rgba(255, 255, 255, 0.1)',
           borderTopWidth: 1,
           paddingTop: 8,
           paddingBottom: 8,
           height: 70,
+          shadowColor: '#D97706',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.3,
+          shadowRadius: 12,
+          elevation: 12,
         },
-        tabBarActiveTintColor: '#D97706',
-        tabBarInactiveTintColor: '#6B7280',
+        tabBarItemStyle: {
+          paddingVertical: 8,
+        },
         tabBarLabelStyle: {
-          fontFamily: 'Inter-Medium',
-          fontSize: 12,
-          marginTop: 4,
+          display: 'none',
         },
-      }}
-    >
+        headerShown: false,
+      }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ size, color }) => (
-            <Home size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <LinearGradient
+              colors={focused ? ['#D97706', '#F59E0B'] : ['rgba(217, 119, 6, 0.1)', 'rgba(245, 158, 11, 0.1)']}
+              style={{
+                padding: 8,
+                borderRadius: 12,
+                opacity: focused ? 1 : 0.7,
+                borderWidth: focused ? 1 : 0,
+                borderColor: 'rgba(217, 119, 6, 0.3)',
+              }}
+            >
+              <FontAwesome name="home" size={24} color={color} />
+            </LinearGradient>
           ),
         }}
       />
@@ -36,8 +59,19 @@ export default function TabLayout() {
         name="create"
         options={{
           title: 'Create',
-          tabBarIcon: ({ size, color }) => (
-            <Edit3 size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <LinearGradient
+              colors={focused ? ['#D97706', '#F59E0B'] : ['rgba(217, 119, 6, 0.1)', 'rgba(245, 158, 11, 0.1)']}
+              style={{
+                padding: 8,
+                borderRadius: 12,
+                opacity: focused ? 1 : 0.7,
+                borderWidth: focused ? 1 : 0,
+                borderColor: 'rgba(217, 119, 6, 0.3)',
+              }}
+            >
+              <FontAwesome name="plus-circle" size={24} color={color} />
+            </LinearGradient>
           ),
         }}
       />
@@ -45,8 +79,19 @@ export default function TabLayout() {
         name="rewrite"
         options={{
           title: 'Rewrite',
-          tabBarIcon: ({ size, color }) => (
-            <FileText size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <LinearGradient
+              colors={focused ? ['#D97706', '#F59E0B'] : ['rgba(217, 119, 6, 0.1)', 'rgba(245, 158, 11, 0.1)']}
+              style={{
+                padding: 8,
+                borderRadius: 12,
+                opacity: focused ? 1 : 0.7,
+                borderWidth: focused ? 1 : 0,
+                borderColor: 'rgba(217, 119, 6, 0.3)',
+              }}
+            >
+              <FontAwesome name="edit" size={24} color={color} />
+            </LinearGradient>
           ),
         }}
       />
@@ -54,8 +99,19 @@ export default function TabLayout() {
         name="premium"
         options={{
           title: 'Premium',
-          tabBarIcon: ({ size, color }) => (
-            <Crown size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <LinearGradient
+              colors={focused ? ['#D97706', '#F59E0B'] : ['rgba(217, 119, 6, 0.1)', 'rgba(245, 158, 11, 0.1)']}
+              style={{
+                padding: 8,
+                borderRadius: 12,
+                opacity: focused ? 1 : 0.7,
+                borderWidth: focused ? 1 : 0,
+                borderColor: 'rgba(217, 119, 6, 0.3)',
+              }}
+            >
+              <FontAwesome name="star" size={24} color={color} />
+            </LinearGradient>
           ),
         }}
       />
@@ -63,8 +119,19 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ size, color }) => (
-            <Settings size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <LinearGradient
+              colors={focused ? ['#D97706', '#F59E0B'] : ['rgba(217, 119, 6, 0.1)', 'rgba(245, 158, 11, 0.1)']}
+              style={{
+                padding: 8,
+                borderRadius: 12,
+                opacity: focused ? 1 : 0.7,
+                borderWidth: focused ? 1 : 0,
+                borderColor: 'rgba(217, 119, 6, 0.3)',
+              }}
+            >
+              <FontAwesome name="gear" size={24} color={color} />
+            </LinearGradient>
           ),
         }}
       />

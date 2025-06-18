@@ -1,0 +1,129 @@
+# React Native + Expo + TypeScript Cursor Rules
+
+You are an expert in TypeScript, React Native, Expo, and Mobile App Development.
+
+## Code Style and Structure
+- Write concise, type-safe TypeScript code
+- Use functional components and hooks over class components
+- Ensure components are modular, reusable, and maintainable
+- Organize files by feature, grouping related components, hooks, and styles
+- Use absolute imports with path mapping when possible
+
+## Naming Conventions
+- Use camelCase for variable and function names (e.g., userName, fetchUserData)
+- Use PascalCase for component names (e.g., UserProfile, NavigationHeader)
+- Use kebab-case for file names (e.g., user-profile.tsx, api-client.ts)
+- Use UPPER_SNAKE_CASE for constants and environment variables
+- Prefix custom hooks with "use" (e.g., useAuth, useApiCall)
+- Prefix type definitions with "T" and interfaces with "I" when helpful
+
+## TypeScript Usage
+- Use TypeScript for all files; prefer interfaces over types for object definitions
+- Enable strict mode in TypeScript configuration
+- Define proper types for component props, state, and function parameters
+- Use generic types where applicable to improve reusability
+- Leverage union types and type guards for better type safety
+- Use "as const" for literal types when needed
+
+## React Native Best Practices
+- Use React Native's built-in components and APIs
+- Implement responsive design using Flexbox and Dimensions API
+- Use StyleSheet.create() for styling instead of inline styles
+- Leverage React Native's performance optimizations (memo, useMemo, useCallback)
+- Handle platform differences using Platform.OS when necessary
+- Use proper keyboard handling and accessibility features
+
+## Expo Specific Guidelines
+- Leverage Expo SDK features and APIs when available
+- Use Expo Router for navigation in newer projects
+- Implement proper app configuration in app.json/app.config.js
+- Use Expo's built-in development tools and debugging features
+- Handle app permissions properly using Expo's permission APIs
+- Use Expo's asset management for images, fonts, and other resources
+
+## State Management
+- Use React's built-in state management (useState, useReducer, useContext)
+- Implement proper state lifting and prop drilling alternatives
+- Consider using Zustand or Redux Toolkit for complex state management
+- Use React Query or SWR for server state management
+- Implement proper error boundaries and error handling
+
+## Performance Optimization
+- Use React.memo() for expensive component re-renders
+- Implement proper list virtualization for large datasets (FlatList, SectionList)
+- Use lazy loading and code splitting where appropriate
+- Optimize images and assets for mobile devices
+- Implement proper caching strategies for API calls and data
+
+## API Integration
+- Use proper HTTP client setup (fetch, axios, or Expo's networking)
+- Implement proper error handling and retry logic
+- Use TypeScript interfaces for API response types
+- Implement proper loading states and user feedback
+- Handle network connectivity changes gracefully
+
+## Navigation
+- Use React Navigation or Expo Router consistently
+- Implement proper deep linking and URL handling
+- Use proper navigation types and type safety
+- Handle navigation state and screen transitions properly
+- Implement proper back button handling for Android
+
+## Testing
+- Write unit tests for utility functions and custom hooks
+- Use React Native Testing Library for component testing
+- Implement proper mocking for native modules and APIs
+- Write integration tests for critical user flows
+- Use proper test data and fixtures
+
+## Security
+- Never commit sensitive data or API keys to version control
+- Use Expo SecureStore or AsyncStorage appropriately
+- Implement proper input validation and sanitization
+- Handle authentication and authorization securely
+- Use HTTPS for all network requests
+
+## Error Handling
+- Implement comprehensive error boundaries
+- Use proper error logging and crash reporting
+- Handle network errors and offline scenarios
+- Provide meaningful error messages to users
+- Implement proper fallback UI components
+
+## Accessibility
+- Use proper accessibility labels and hints
+- Implement proper focus management
+- Ensure proper color contrast and text sizing
+- Test with screen readers and accessibility tools
+- Follow platform-specific accessibility guidelines
+
+## Development Workflow
+- Use proper Git workflow and commit messages
+- Implement proper code review processes
+- Use ESLint and Prettier for code formatting
+- Set up proper development and production environments
+- Use proper debugging tools and techniques
+
+## Specific to this project (brutal-sales-app)
+- This is an AI-powered product description generation app
+- Focus on clean, modern UI with glossy effects and gradients
+- Implement proper API integration for AI services
+- Handle user authentication and premium features
+- Use proper navigation structure with bottom tabs
+- Implement proper form handling for product descriptions
+- Focus on mobile-first design and user experience
+
+## Key Dependencies in this project
+- Expo SDK and Router
+- React Native with TypeScript
+- Supabase for backend services
+- Various UI and utility libraries
+- Custom components and hooks
+
+When suggesting code improvements or new features:
+1. Always consider mobile performance and user experience
+2. Ensure TypeScript type safety
+3. Follow React Native and Expo best practices
+4. Consider accessibility and platform differences
+5. Implement proper error handling and loading states
+6. Focus on maintainable and testable code structure

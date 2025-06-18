@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import { OpenAI } from 'openai';
 import { showCreateInterstitial } from '@/utils/admob';
 import { 
   ToneType, 
@@ -12,231 +12,168 @@ import {
 
 // Initialize OpenAI client with DeepSeek configuration
 const openai = new OpenAI({
-  baseURL: 'https://api.deepseek.com',
+  baseURL: process.env.EXPO_PUBLIC_DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
   apiKey: process.env.EXPO_PUBLIC_DEEPSEEK_API_KEY,
 });
 
 interface GenerateRequest {
   make: string;
   model: string;
+  condition?: string;
+  itemDetails?: string;
   tone?: string;
+  acceptOffers?: boolean;
 }
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json() as GenerateRequest;
-    const { make, model, tone } = body;
-
-    if (!make?.trim() || !model?.trim()) {
-      return new Response(
-        JSON.stringify({ error: 'Make and model are required' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+    const body = await req.json() as GenerateRequest;
+    
+    if (!body.make || !body.model) {
+      return new Response(JSON.stringify({ 
+        error: 'Make and model are required' 
+      }), { status: 400 });
     }
 
-    // Show interstitial ad before generating response
-    await showCreateInterstitial();
+    const tone = isValidTone(body.tone) ? body.tone : DEFAULT_TONE;
+    const toneInstruction = getToneInstruction(tone);
+    const acceptOffers = body.acceptOffers ?? true;
 
-    // Get tone instruction using the helper function
-    const toneInstruction = getToneInstruction(tone || DEFAULT_TONE);
-    const validTone = isValidTone(tone) ? tone : DEFAULT_TONE;
+    const prompt = `Create a professional product description for a ${body.condition || ''} ${body.make} ${body.model}.
+${body.itemDetails ? `Additional details: ${body.itemDetails}\n` : ''}
+${toneInstruction}
+${acceptOffers ? 'Include a brief line about welcoming offers that matches the tone of the description.' : 'Do not mention anything about offers.'}
+Keep the description concise but compelling.`;
 
     try {
-      // Prepare messages for DeepSeek API
-      const messages: DeepSeekMessage[] = [
-        {
-          role: 'system',
-          content: `You are a professional copywriter specializing in writing compelling product descriptions for online marketplaces. ${toneInstruction}
-
-IMPORTANT FORMATTING RULES:
-- Always include the make and model in the title
-- Use emojis strategically and appropriately for the tone
-- Create clear sections and structure
-- Keep descriptions concise but impactful
-- Include a professional closing line
-- Make it engaging and conversion-focused
-- Ensure the tone is consistent throughout
-
-Your goal is to create a persuasive and engaging product description that will help sell the item.`
-        },
-        {
-          role: 'user',
-          content: `Please write a compelling product description for a ${make} ${model} with a ${validTone} tone.
-
-Requirements:
-- Include the make and model in the title
-- Use a ${validTone} tone throughout
-- Use appropriate emojis and formatting
-- Make it engaging and conversion-focused
-- Keep it concise but impactful
-- Add a professional closing line that matches the ${validTone} tone
-- Ensure the description feels natural and authentic`
-        }
-      ];
-
-      // Prepare DeepSeek API request
-      const apiRequest: DeepSeekRequest = {
+      const completion = await openai.chat.completions.create({
         model: 'deepseek-chat',
-        messages,
-        max_tokens: 1200,
-        temperature: 0.8,
-        top_p: 0.9,
-        frequency_penalty: 0,
-        presence_penalty: 0,
-        response_format: { type: 'text' },
-        stream: false,
-        stream_options: null,
-        logprobs: false,
-        top_logprobs: null
-      };
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are a professional product description writer. Create compelling, accurate descriptions that highlight key features and benefits. IMPORTANT: If instructed to include an offers line, make it brief and match the tone of the description. Do not mention corporate or bulk deals unless specifically requested. Do not include any introductory text like "Here is a professional description:" or concluding text like "Let me know if you need any changes". Just provide the description itself.'
+          },
+          { 
+            role: 'user', 
+            content: prompt 
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 500,
+      });
 
-      // DeepSeek API integration
-      const completion = await openai.chat.completions.create(apiRequest);
-      const response = completion as unknown as DeepSeekResponse;
-
-      const generatedText = response.choices[0]?.message?.content;
-
+      const generatedText = completion.choices[0]?.message?.content?.trim();
+      
       if (!generatedText) {
-        throw new Error('No text generated from DeepSeek API');
+        throw new Error('No description generated');
       }
 
-      return new Response(
-        JSON.stringify({ 
-          generatedText,
-          make,
-          model,
-          tone: validTone,
-          success: true,
-          source: 'deepseek'
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return new Response(JSON.stringify({
+        generatedText,
+        source: 'deepseek'
+      }), { status: 200 });
 
     } catch (apiError: any) {
       console.error('DeepSeek API error:', apiError);
-      return new Response(
-        JSON.stringify({ 
-          error: 'API error',
-          message: apiError.message 
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      
+      // Fallback to a basic description if API fails
+      const fallbackDescription = `${body.condition || ''} ${body.make} ${body.model} for sale.
+${body.itemDetails || ''}
+${acceptOffers ? '\nOffers welcome.' : ''}`;
+
+      return new Response(JSON.stringify({
+        generatedText: fallbackDescription,
+        source: 'fallback',
+        error: apiError.message
+      }), { status: 200 });
     }
 
   } catch (error: any) {
-    console.error('Generate API error:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: 'Internal server error',
-        message: error.message 
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    console.error('Generation error:', error);
+    return new Response(JSON.stringify({ 
+      error: error.message || 'Failed to generate description' 
+    }), { status: 500 });
   }
 }
 
-function getFallbackResponse(body: any) {
-  const { tone = 'professional' } = body;
-  
-  const toneExamples: Record<string, string> = {
-    professional: `🔥 **${body?.make || 'Premium'} ${body?.model || 'Item'}** - ${body?.condition?.replace('_', ' ').toUpperCase() || 'EXCELLENT CONDITION'}
+function getFallbackResponse(body: GenerateRequest) {
+  const toneExamples = {
+    professional: `🌟 **${body.make.toUpperCase()} ${body.model.toUpperCase()}** 🌟
 
-⚡ **Condition:** ${body?.condition?.replace('_', ' ') || 'Excellent'}
+✨ **PROFESSIONAL DESCRIPTION:**
 
-${body?.itemDetails ? `📋 **Details:** ${body.itemDetails}` : ''}
+This exceptional ${body.make} ${body.model} represents outstanding value and quality in today's marketplace. Meticulously maintained and ready for immediate deployment, it offers the perfect synthesis of functionality and reliability.
 
-🛡️ **Why Choose This Item:**
+🏆 **Key Features:**
 • Premium quality and reliability
 • Thoroughly tested and verified
-• Fast shipping and secure packaging
-• 30-day satisfaction guarantee
+• Comprehensive documentation included
+• Expert handling and care throughout
 
-💫 **Perfect for:** Professional use, collectors, or anyone seeking quality and value.
+**Investment Highlights:** This piece has been carefully evaluated and meets our stringent quality benchmarks. With comprehensive testing and verification completed, it stands as a testament to excellence in its category.
 
-🚀 **Ready to ship immediately!** Don't miss this opportunity to own this exceptional piece.
-
----
-*Crafted with BrutalSales AI - Where legendary descriptions are forged.*`,
-
-    friendly: `Hey there! 👋 **Amazing ${body?.make || 'Premium'} ${body?.model || 'Find'}** - ${body?.condition?.replace('_', ' ').toUpperCase() || 'GREAT CONDITION'}
-
-😊 **What You're Getting:** ${body?.condition?.replace('_', ' ') || 'Excellent condition'}
-
-${body?.itemDetails ? `💝 **Special Details:** ${body.itemDetails}` : ''}
-
-🌟 **Why You'll Love It:**
-• Treated with care and love
-• Ready to bring joy to your life
-• Fast and friendly shipping
-• Happy to answer any questions!
-
-💕 **Perfect for:** Anyone who appreciates quality and great finds!
-
-🎉 **Ready to make someone happy!** This gem is waiting for its new home.
+**Immediate Availability:** Ready for prompt shipment with full documentation and support materials included.${body.acceptOffers ? '\n\n**Open to Offers:** We welcome reasonable offers and are committed to finding the right buyer for this exceptional item.' : ''}
 
 ---
-*Made with love by BrutalSales AI - Where great finds meet great people.*`,
+*Professionally crafted by BrutalSales AI - Where excellence meets opportunity.*`,
 
-    energetic: `🚀 **INCREDIBLE ${body?.make || 'PREMIUM'} ${body?.model || 'OPPORTUNITY'}** - ${body?.condition?.replace('_', ' ').toUpperCase() || 'AMAZING CONDITION'} 🚀
+    friendly: `Hey there! 👋 **${body.make} ${body.model}** 
 
-⚡ **CONDITION:** ${body?.condition?.replace('_', ' ') || 'EXCELLENT'} - READY TO ROCK!
+😊 **FRIENDLY DESCRIPTION:**
 
-${body?.itemDetails ? `🔥 **POWER DETAILS:** ${body.itemDetails}` : ''}
+You're going to absolutely love this amazing ${body.make} ${body.model}! I've taken such great care of this beauty, and it's ready to bring joy to its next home. It's been my trusted companion, and now it's time to share the love!
 
-💥 **WHY THIS IS AWESOME:**
-• UNBEATABLE quality and performance!
-• LIGHTNING-FAST shipping!
-• ROCK-SOLID guarantee!
-• MAXIMUM value for your money!
+💝 **Why You'll Adore It:**
+• Treated with tender loving care
+• Ready to make you smile every day
+• Comes with all the good vibes included
+• Perfect for someone special (that's you!)
 
-🎯 **PERFECT FOR:** Anyone ready for EXCELLENCE!
+**Personal Touch:** I genuinely believe this will make someone very happy. It's been wonderful to me, and I know it'll be just as wonderful for you!
 
-⚡ **DON'T WAIT!** This AMAZING opportunity won't last long!
-
----
-*POWERED by BrutalSales AI - Where ENERGY meets EXCELLENCE!*`,
-
-    humor: `😄 **${body?.make || 'Awesome'} ${body?.model || 'Thing'}** - ${body?.condition?.replace('_', ' ').toUpperCase() || 'SURPRISINGLY GOOD'} (Better than my cooking!) 😄
-
-🤔 **The Real Deal:** ${body?.condition?.replace('_', ' ') || 'Excellent'} (No, seriously!)
-
-${body?.itemDetails ? `🎭 **Fun Facts:** ${body.itemDetails}` : ''}
-
-😂 **Why This Rocks:**
-• More reliable than my WiFi
-• Ships faster than my excuses
-• Guaranteed to make you smile
-• Comes with my seal of approval!
-
-🎪 **Perfect for:** People with excellent taste (like you!)
-
-🎉 **Grab it before someone else does!** (And before I change my mind!)
+**Ready to Go:** Packed with care and ready to start its new adventure with you!${body.acceptOffers ? '\n\n**Open to Offers:** Feel free to send me a message if you\'d like to chat about the price - I\'m always happy to work something out!' : ''}
 
 ---
-*Brought to you by BrutalSales AI - Where humor meets great deals!*`
+*Crafted with love by BrutalSales AI - Where friendships begin with great finds.*`,
+
+    energetic: `🚀 **${body.make.toUpperCase()} ${body.model.toUpperCase()}** ⚡
+
+⚡ **HIGH-ENERGY DESCRIPTION:**
+
+🔥 INCREDIBLE OPPORTUNITY ALERT! 🔥 This AMAZING ${body.make} ${body.model} is ready to TRANSFORM your experience! Don't let this SPECTACULAR deal slip away - it's packed with POWER and ready to DELIVER beyond your wildest expectations!
+
+💥 **EXPLOSIVE BENEFITS:**
+• INSTANT satisfaction guaranteed!
+• DYNAMIC performance ready to go!
+• UNSTOPPABLE quality that won't quit!
+• MAXIMUM value that'll blow your mind!
+
+**URGENT ACTION REQUIRED:** This level of AWESOME doesn't last long! Get ready to experience something EXTRAORDINARY that'll leave you saying "WOW!" every single day!
+
+**LIGHTNING-FAST SHIPPING:** Ready to ROCKET to your door immediately!${body.acceptOffers ? '\n\n**OFFERS WELCOME!** 💪 Don\'t be shy - send me your BEST offer and let\'s make a deal that\'ll make us both happy!' : ''}
+
+---
+*SUPERCHARGED by BrutalSales AI - Where ENERGY meets EXCELLENCE!*`,
+
+    humor: `🎭 **${body.make} ${body.model}** 🎪
+
+🎪 **COMEDY DESCRIPTION:**
+
+Well, well, well... look what we have here! This little ${body.make} ${body.model} has been sitting in my collection, just waiting for its moment to shine. And boy, is it ready to put on a show! 🎭
+
+🎪 **Why This Item is a Star:**
+• It's got more personality than a stand-up comedian
+• Cleaner than my jokes (and that's saying something!)
+• Ready to steal the spotlight in your collection
+• Comes with a lifetime supply of good vibes
+
+**The Plot Twist:** This isn't your average item - it's the main character in your next success story! And trust me, this story has a happy ending! 😉
+
+**The Grand Finale:** Packed and ready for its next big performance!${body.acceptOffers ? '\n\n**The Negotiation Scene:** I\'m open to offers that\'ll make us both laugh all the way to the bank! 😄' : ''}
+
+---
+*Directed by BrutalSales AI - Where every description is a comedy hit!*`
   };
 
-  return new Response(
-    JSON.stringify({ 
-      description: toneExamples[tone as keyof typeof toneExamples] || toneExamples.professional,
-      success: true,
-      source: 'fallback'
-    }),
-    {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }
-  );
+  return toneExamples[body.tone as keyof typeof toneExamples] || toneExamples.professional;
 }

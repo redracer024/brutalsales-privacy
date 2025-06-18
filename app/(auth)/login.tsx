@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,81 +7,140 @@ import {
   TextInput,
   SafeAreaView,
   ScrollView,
+  Alert,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Crown, Mail, Lock, ArrowLeft } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
+import Constants from 'expo-constants';
+import GoogleSignIn from '@/components/GoogleSignIn';
 
 export default function LoginScreen() {
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
+  const { user, loading: authLoading, refreshSession } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email';
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace('/(tabs)');
     }
-
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  }, [user, authLoading]);
 
   const handleLogin = async () => {
-    if (!validateForm()) return;
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password.');
+      return;
+    }
 
     setIsLoading(true);
-    setErrors({});
-
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email.trim(),
-        password: formData.password,
+        email: email.trim(),
+        password,
       });
 
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
-          setErrors({ general: 'Invalid email or password. Please try again.' });
+          Alert.alert('Error', 'Invalid email or password. Please try again.');
         } else {
-          setErrors({ general: error.message });
+          Alert.alert('Error', error.message);
         }
         return;
       }
 
-      if (data.user) {
+      if (data.session) {
+        await refreshSession();
         router.replace('/(tabs)');
+      } else {
+        Alert.alert('Error', 'Failed to start session. Please try again.');
       }
     } catch (error: any) {
       console.error('Login error:', error);
-      setErrors({ general: 'An unexpected error occurred. Please try again.' });
+      Alert.alert('Error', error.message || 'An error occurred during login.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const navigateToSignup = () => {
-    router.replace('/(auth)/signup');
+  const onGuestMode = async () => {
+    setIsLoading(true);
+    try {
+      const guestEmail = Constants.expoConfig?.extra?.guestEmail || 'guest@brutalsales.app';
+      const guestPassword = Constants.expoConfig?.extra?.guestPassword || 'guestmode123!';
+
+      // First try to sign in with guest credentials
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: guestEmail,
+        password: guestPassword
+      });
+
+      // If guest account doesn't exist, create it
+      if (error && error.message.includes('Invalid login credentials')) {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: guestEmail,
+          password: guestPassword,
+          options: {
+            emailRedirectTo: getRedirectUrl(),
+            data: {
+              role: 'guest'
+            }
+          }
+        });
+
+        if (signUpError) {
+          Alert.alert('Error', signUpError.message || 'Unable to create guest account');
+          return;
+        }
+
+        if (signUpData.session) {
+          await refreshSession();
+          router.replace('/(tabs)');
+        } else {
+          Alert.alert('Success', 'Guest account created. Please check your email to verify your account.');
+        }
+      } else if (error) {
+        Alert.alert('Error', error.message || 'Unable to enter guest mode');
+      } else if (data.session) {
+        await refreshSession();
+        router.replace('/(tabs)');
+      }
+    } catch (error: any) {
+      console.error('Guest mode error:', error);
+      Alert.alert('Error', error.message || 'Unable to enter guest mode. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleGuestMode = () => {
-    router.replace('/(tabs)');
+  const getRedirectUrl = () => {
+    if (Platform.OS === 'web') {
+      return `${window.location.origin}/auth/callback`;
+    }
+    return Constants.expoConfig?.web?.auth?.redirectUrl || process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL;
   };
+
+  if (authLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <LinearGradient
+          colors={['#0F0A19', '#1E1B4B', '#312E81']}
+          style={styles.gradient}
+        >
+          <ActivityIndicator size="large" color="#D97706" />
+        </LinearGradient>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['#0F0A19', '#1E1B4B', '#4C1D95']}
+        colors={['#0F0A19', '#1E1B4B', '#312E81']}
         style={styles.gradient}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -101,47 +160,37 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* Error Message */}
-          {errors.general && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{errors.general}</Text>
-            </View>
-          )}
-
           {/* Login Form */}
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email Address</Text>
               <View style={styles.inputContainer}>
-                <Mail size={20} color="#6B7280" />
+                <Mail color="#6B7280" size={20} style={styles.inputIcon} />
                 <TextInput
                   style={styles.textInput}
-                  value={formData.email}
-                  onChangeText={(text) => setFormData({ ...formData, email: text })}
+                  value={email}
+                  onChangeText={setEmail}
                   placeholder="Enter your email"
                   placeholderTextColor="#6B7280"
-                  keyboardType="email-address"
                   autoCapitalize="none"
-                  autoCorrect={false}
+                  keyboardType="email-address"
+                  editable={!isLoading}
                 />
               </View>
-              {errors.email && <Text style={styles.fieldError}>{errors.email}</Text>}
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Password</Text>
               <View style={styles.inputContainer}>
-                <Lock size={20} color="#6B7280" />
+                <Lock color="#6B7280" size={20} style={styles.inputIcon} />
                 <TextInput
                   style={styles.textInput}
-                  value={formData.password}
-                  onChangeText={(text) => setFormData({ ...formData, password: text })}
+                  value={password}
+                  onChangeText={setPassword}
                   placeholder="Enter your password"
                   placeholderTextColor="#6B7280"
                   secureTextEntry
+                  editable={!isLoading}
                 />
               </View>
-              {errors.password && <Text style={styles.fieldError}>{errors.password}</Text>}
             </View>
 
             <TouchableOpacity
@@ -159,16 +208,19 @@ export default function LoginScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.guestButton} onPress={handleGuestMode}>
-              <Text style={styles.guestButtonText}>Continue as Guest</Text>
-            </TouchableOpacity>
-          </View>
+            <GoogleSignIn
+              onError={(error) => {
+                Alert.alert('Error', error);
+              }}
+              isLoading={isLoading}
+            />
 
-          {/* Signup Link */}
-          <View style={styles.signupContainer}>
-            <Text style={styles.signupText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={navigateToSignup}>
-              <Text style={styles.signupLink}>Sign Up</Text>
+            <TouchableOpacity 
+              style={[styles.guestButton, isLoading && styles.buttonDisabled]} 
+              onPress={onGuestMode}
+              disabled={isLoading}
+            >
+              <Text style={styles.guestButtonText}>Continue as Guest</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -181,12 +233,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   gradient: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 24,
+    justifyContent: 'center',
+    padding: 20,
   },
   header: {
     alignItems: 'center',
@@ -218,100 +275,53 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  errorContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-  },
-  errorText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: '#EF4444',
-    textAlign: 'center',
-  },
   formContainer: {
     marginBottom: 30,
   },
   inputGroup: {
     marginBottom: 20,
   },
-  inputLabel: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#1F2937',
     borderRadius: 12,
     paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 12,
+  },
+  inputIcon: {
+    marginRight: 12,
   },
   textInput: {
     flex: 1,
-    paddingVertical: 16,
-    paddingLeft: 12,
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
     color: '#FFFFFF',
-  },
-  fieldError: {
-    fontSize: 12,
     fontFamily: 'Inter-Regular',
-    color: '#EF4444',
-    marginTop: 4,
+    fontSize: 16,
   },
   loginButton: {
     borderRadius: 12,
     overflow: 'hidden',
-    marginTop: 10,
     marginBottom: 16,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonGradient: {
     paddingVertical: 16,
-    paddingHorizontal: 24,
     alignItems: 'center',
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
   loginButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
   },
   guestButton: {
     paddingVertical: 16,
-    paddingHorizontal: 24,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 12,
   },
   guestButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter-Medium',
-    color: '#FFFFFF',
-  },
-  signupContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  signupText: {
+    color: '#C4B5FD',
     fontSize: 16,
     fontFamily: 'Inter-Regular',
-    color: '#C4B5FD',
-  },
-  signupLink: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#D97706',
   },
 });

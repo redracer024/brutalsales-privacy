@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,25 +9,83 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Switch,
+  Clipboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ArrowLeft, Wand as Wand2, Copy, Share, Smile, Briefcase, Zap, Laugh } from 'lucide-react-native';
+import { ArrowLeft, Wand as Wand2, Copy, Smile, Briefcase, Zap, Laugh } from 'lucide-react-native';
 import AdBanner from '@/components/AdBanner';
 import InterstitialAd from '@/components/InterstitialAd';
 import { useAdManager } from '@/hooks/useAdManager';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
 
 export default function RewriteScreen() {
+  const { user, loading } = useAuth();
   const [originalText, setOriginalText] = useState('');
   const [selectedTone, setSelectedTone] = useState('professional');
   const [rewrittenText, setRewrittenText] = useState('');
   const [isRewriting, setIsRewriting] = useState(false);
   const [isPremium] = useState(false);
+  const [acceptOffers, setAcceptOffers] = useState(true);
+  const [userTerms, setUserTerms] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const adManager = useAdManager({
     isPremium,
     showInterstitialAfter: 1, // Show interstitial before rewriting
   });
+
+  useEffect(() => {
+    if (!loading) {
+      fetchUserTerms();
+    }
+  }, [loading]);
+
+  const fetchUserTerms = async () => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        setUserTerms('Thank you for using our service. As a guest user, you have access to basic features.');
+        return;
+      }
+
+      if (!session?.user) {
+        // Guest mode - use default terms
+        setUserTerms('Thank you for using our service. As a guest user, you have access to basic features.');
+        return;
+      }
+
+      const { data: termsData, error } = await supabase
+        .from('user_terms')
+        .select('terms_text')
+        .eq('user_id', session.user.id)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No terms found for user
+          setUserTerms('Thank you for using our service.');
+        } else {
+          console.error('Error fetching terms:', error);
+          setUserTerms('Thank you for using our service. If you experience any issues, please contact support.');
+        }
+        return;
+      }
+
+      if (termsData?.terms_text) {
+        setUserTerms(termsData.terms_text);
+      } else {
+        setUserTerms('Thank you for using our service.');
+      }
+    } catch (error) {
+      console.error('Error fetching terms:', error);
+      setUserTerms('Thank you for using our service. If you experience any issues, please contact support.');
+    }
+  };
 
   const toneOptions = [
     { id: 'professional', label: 'Professional', icon: Briefcase, color: '#3B82F6' },
@@ -36,33 +94,48 @@ export default function RewriteScreen() {
     { id: 'humor', label: 'Humor', icon: Laugh, color: '#EC4899' },
   ];
 
-  const rewriteDescription = async () => {
+  const handleRewrite = async () => {
     if (!originalText.trim()) {
-      Alert.alert('No Text', 'Please paste some text to rewrite.');
+      Alert.alert('Error', 'Please enter some text to rewrite');
       return;
     }
 
-    // Show interstitial ad before rewriting for free users
-    if (!isPremium) {
-      adManager.incrementActionCount();
-      // Don't call performRewrite here - it will be called when ad is dismissed
-    } else {
-      await performRewrite();
-    }
-  };
-
-  const performRewrite = async () => {
-    setIsRewriting(true);
-    
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Check if user is guest
+      if (session?.user?.email === 'guest@brutalsales.app') {
+        Alert.alert(
+          'Premium Feature',
+          'Rewriting descriptions is a premium feature. Please sign up to access this feature.',
+          [
+            { text: 'Sign Up', onPress: () => router.push('/(auth)/signup') },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+        return;
+      }
+
+      setIsRewriting(true);
+      setError(null);
+
+      // Show interstitial ad if needed
+      if (!isPremium) {
+        adManager.incrementActionCount();
+        if (adManager.showInterstitial) {
+          return; // Let the interstitial ad handle the rewrite
+        }
+      }
+
       const response = await fetch('/api/rewrite', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          originalText: originalText,
+          originalText,
           tone: selectedTone,
+          acceptOffers,
         }),
       });
 
@@ -72,8 +145,13 @@ export default function RewriteScreen() {
         throw new Error(data.error || 'Failed to rewrite description');
       }
 
-      setRewrittenText(data.rewrittenText);
-      
+      // Append terms if they exist
+      const finalText = userTerms 
+        ? `${data.generatedText}\n\n---\n\n${userTerms}`
+        : data.generatedText;
+
+      setRewrittenText(finalText);
+
       // Show success message if using DeepSeek API
       if (data.source === 'deepseek') {
         console.log('✅ Rewritten using DeepSeek AI');
@@ -87,22 +165,36 @@ export default function RewriteScreen() {
         'Rewrite Failed',
         error.message || 'We encountered an issue rewriting your text. Please try again.'
       );
-    } finally {
-      setIsRewriting(false);
     }
+    setIsRewriting(false);
   };
 
   const copyToClipboard = () => {
-    Alert.alert('Copied!', 'Rewritten description copied to clipboard');
-  };
-
-  const shareDescription = () => {
-    Alert.alert('Share', 'Share functionality coming soon!');
+    try {
+      Clipboard.setString(rewrittenText);
+      Alert.alert('Success', 'Description copied to clipboard');
+    } catch (error) {
+      console.error('Copy error:', error);
+      Alert.alert('Error', 'Failed to copy description');
+    }
   };
 
   const handleUpgradeToPremium = () => {
     router.push('/(tabs)/premium');
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <LinearGradient
+          colors={['#0F0A19', '#1E1B4B', '#312E81']}
+          style={styles.gradient}
+        >
+          <ActivityIndicator size="large" color="#D97706" />
+        </LinearGradient>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -143,6 +235,16 @@ export default function RewriteScreen() {
             </Text>
           </View>
 
+          <View style={styles.toggleContainer}>
+            <Text style={styles.toggleLabel}>Accept Offers</Text>
+            <Switch
+              value={acceptOffers}
+              onValueChange={setAcceptOffers}
+              trackColor={{ false: '#4B5563', true: '#D97706' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
           {/* Tone Selection */}
           <View style={styles.toneContainer}>
             <Text style={styles.sectionTitle}>Choose Your Tone</Text>
@@ -156,18 +258,20 @@ export default function RewriteScreen() {
                     key={tone.id}
                     style={[
                       styles.toneOption,
-                      isSelected && styles.toneOptionSelected,
+                      isSelected && { borderColor: tone.color }
                     ]}
                     onPress={() => setSelectedTone(tone.id)}
                   >
-                    <IconComponent 
-                      size={24} 
-                      color={isSelected ? '#FFFFFF' : tone.color} 
+                    <IconComponent
+                      size={24}
+                      color={isSelected ? tone.color : '#9CA3AF'}
                     />
-                    <Text style={[
-                      styles.toneLabel,
-                      isSelected && styles.toneLabelSelected,
-                    ]}>
+                    <Text
+                      style={[
+                        styles.toneLabel,
+                        isSelected && { color: tone.color }
+                      ]}
+                    >
                       {tone.label}
                     </Text>
                   </TouchableOpacity>
@@ -176,46 +280,53 @@ export default function RewriteScreen() {
             </View>
           </View>
 
-          {/* Generate Button */}
-          <TouchableOpacity
-            style={[styles.generateButton, isRewriting && styles.buttonDisabled]}
-            onPress={rewriteDescription}
-            disabled={isRewriting}
-          >
-            <LinearGradient
-              colors={['#D97706', '#F59E0B']}
-              style={styles.buttonGradient}
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.rewriteButton, isRewriting && styles.buttonDisabled]}
+              onPress={handleRewrite}
+              disabled={isRewriting}
             >
-              {isRewriting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
+              <LinearGradient
+                colors={['#D97706', '#F59E0B']}
+                style={styles.buttonGradient}
+              >
                 <Wand2 size={20} color="#FFFFFF" />
-              )}
-              <Text style={styles.generateButtonText}>
-                {isRewriting ? 'Casting Transformation...' : 'Transform Text'}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+                <Text style={styles.buttonText}>
+                  {isRewriting ? 'Rewriting...' : 'Rewrite Description'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
 
-          {/* Rewritten Text Output */}
+          {/* Results Section */}
           {rewrittenText && (
-            <View style={styles.resultContainer}>
-              <View style={styles.resultHeader}>
-                <Text style={styles.resultTitle}>Transformed Description</Text>
-                <View style={styles.resultActions}>
-                  <TouchableOpacity style={styles.actionButton} onPress={copyToClipboard}>
+            <View style={styles.resultsContainer}>
+              <View style={styles.resultsHeader}>
+                <Text style={styles.resultsTitle}>Rewritten Description</Text>
+                <View style={styles.resultsActions}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={copyToClipboard}
+                  >
                     <Copy size={20} color="#D97706" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton} onPress={shareDescription}>
-                    <Share size={20} color="#D97706" />
                   </TouchableOpacity>
                 </View>
               </View>
-              
-              <View style={styles.descriptionContainer}>
-                <Text style={styles.rewrittenText}>{rewrittenText}</Text>
-              </View>
+              <Text style={styles.rewrittenText}>{rewrittenText}</Text>
             </View>
+          )}
+
+          {/* Premium Upgrade Banner */}
+          {!isPremium && (
+            <TouchableOpacity
+              style={styles.upgradeBanner}
+              onPress={handleUpgradeToPremium}
+            >
+              <Text style={styles.upgradeText}>
+                Upgrade to Premium for unlimited rewrites!
+              </Text>
+            </TouchableOpacity>
           )}
         </ScrollView>
 
@@ -224,7 +335,7 @@ export default function RewriteScreen() {
           visible={adManager.showInterstitial}
           onClose={adManager.hideInterstitial}
           onUpgrade={handleUpgradeToPremium}
-          onAdDismissedAction={performRewrite}
+          onAdDismissedAction={handleRewrite}
           isPremium={isPremium}
         />
       </LinearGradient>
@@ -236,6 +347,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   gradient: {
     flex: 1,
   },
@@ -243,52 +358,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   backButton: {
     padding: 8,
   },
   headerTitle: {
     fontSize: 20,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
   },
   placeholder: {
     width: 40,
   },
   scrollContent: {
-    flexGrow: 1,
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
-    marginBottom: 16,
+    padding: 16,
   },
   inputContainer: {
     marginBottom: 24,
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
+    marginBottom: 12,
+  },
   textArea: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 16,
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
     color: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    height: 120,
-    textAlignVertical: 'top',
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+    minHeight: 120,
   },
   characterCount: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
-    color: '#6B7280',
-    textAlign: 'right',
+    color: '#9CA3AF',
     marginTop: 8,
+    textAlign: 'right',
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
   },
   toneContainer: {
     marginBottom: 24,
@@ -299,86 +420,83 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   toneOption: {
-    width: '48%',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  toneOptionSelected: {
-    backgroundColor: 'rgba(217, 119, 6, 0.3)',
-    borderColor: '#D97706',
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   toneLabel: {
     fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#C4B5FD',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
     marginTop: 8,
   },
-  toneLabelSelected: {
-    color: '#FFFFFF',
+  actionButtons: {
+    marginBottom: 24,
   },
-  generateButton: {
+  rewriteButton: {
     borderRadius: 12,
     overflow: 'hidden',
-    marginBottom: 24,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    paddingHorizontal: 24,
-    gap: 8,
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  buttonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
+    marginLeft: 8,
   },
-  generateButtonText: {
+  resultsContainer: {
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  resultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  resultsTitle: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     color: '#FFFFFF',
   },
-  resultContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(217, 119, 6, 0.3)',
-  },
-  resultHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  resultTitle: {
-    fontSize: 18,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
-  },
-  resultActions: {
+  resultsActions: {
     flexDirection: 'row',
     gap: 12,
   },
   actionButton: {
-    backgroundColor: 'rgba(217, 119, 6, 0.2)',
-    borderRadius: 8,
     padding: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(217, 119, 6, 0.5)',
-  },
-  descriptionContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 12,
-    padding: 16,
   },
   rewrittenText: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Inter-Regular',
-    color: '#E5E7EB',
-    lineHeight: 20,
+    color: '#FFFFFF',
+    lineHeight: 24,
+  },
+  upgradeBanner: {
+    backgroundColor: '#374151',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  upgradeText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    color: '#D97706',
   },
 });

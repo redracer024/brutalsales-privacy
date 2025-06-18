@@ -264,8 +264,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
   },
   closeButton: {
     padding: 4,
@@ -275,8 +275,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
     marginBottom: 20,
   },
   typeSelection: {},
@@ -300,8 +300,8 @@ const styles = StyleSheet.create({
   },
   typeTitle: {
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
     marginBottom: 4,
   },
   typeDescription: {
@@ -340,8 +340,8 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#C4B5FD',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
     marginBottom: 8,
   },
   textInput: {

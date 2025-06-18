@@ -1,64 +1,32 @@
-import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, Linking, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import { ArrowLeft } from 'lucide-react-native';
 
 export default function DataDeletionScreen() {
   const router = useRouter();
 
-  const handleEmailRequest = async (type: 'account' | 'data') => {
-    try {
-      const subject = type === 'account' 
-        ? 'Account Deletion Request' 
-        : 'Selective Data Deletion Request';
-      
-      const body = type === 'account'
-        ? 'Please delete my account and all associated data.'
-        : 'Please delete the following data from my account (specify which data you want deleted):\n\n- Purchase history\n- Usage data\n- Analytics data\n- Other (please specify)';
-      
-      const emailUrl = `mailto:support@brutalsales.app?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      await Linking.openURL(emailUrl);
-    } catch (error) {
-      console.error('Error opening email client:', error);
-    }
-  };
-
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#0F0A19', '#1A1A1A']}
-        style={styles.gradient}
+      <TouchableOpacity 
+        style={styles.backButton}
+        onPress={() => router.back()}
       >
-        <View style={styles.content}>
-          <Text style={styles.title}>Data Management</Text>
-          
-          <Text style={styles.description}>
-            You can request to delete specific data or your entire account. Please choose an option below:
-          </Text>
+        <ArrowLeft size={24} color="#fff" />
+      </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.button}
-            onPress={() => handleEmailRequest('data')}
-          >
-            <Text style={styles.buttonText}>Delete Specific Data</Text>
-            <Text style={styles.buttonSubtext}>Request deletion of specific data while keeping your account</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.button, styles.deleteButton]}
-            onPress={() => handleEmailRequest('account')}
-          >
-            <Text style={styles.buttonText}>Delete Entire Account</Text>
-            <Text style={styles.buttonSubtext}>Request deletion of your account and all associated data</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.button, styles.backButton]}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.buttonText}>Back to Settings</Text>
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+      <Text style={styles.title}>Request Data Deletion</Text>
+      <Text style={styles.text}>
+        If you would like to request deletion of your account and all associated data, please use the form below. We will process your request as soon as possible.
+      </Text>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => Linking.openURL('https://forms.gle/your-correct-form-id')}
+      >
+        <Text style={styles.buttonText}>Open Data Deletion Request Form</Text>
+      </TouchableOpacity>
+      <Text style={styles.note}>
+        If you have any questions, contact us at support@brutalsales.app
+      </Text>
     </View>
   );
 }
@@ -66,49 +34,44 @@ export default function DataDeletionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0F0A19',
+    padding: 24,
   },
-  gradient: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    paddingTop: 60,
+  backButton: {
+    position: 'absolute',
+    top: 24,
+    left: 24,
+    zIndex: 1,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 28,
     color: '#fff',
-    marginBottom: 20,
+    fontFamily: 'Cinzel-Bold',
+    marginTop: 60,
+    marginBottom: 16,
   },
-  description: {
+  text: {
     color: '#fff',
     fontSize: 16,
-    marginBottom: 30,
-    lineHeight: 24,
+    marginBottom: 24,
+    fontFamily: 'Inter-Regular',
   },
   button: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
+    backgroundColor: '#D97706',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16,
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 5,
+    fontFamily: 'Inter-Bold',
   },
-  buttonSubtext: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  deleteButton: {
-    backgroundColor: 'rgba(255, 59, 48, 0.2)',
-  },
-  backButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    marginTop: 'auto',
+  note: {
+    color: '#C4B5FD',
+    fontSize: 14,
+    marginTop: 16,
+    fontFamily: 'Inter-Regular',
   },
 }); 

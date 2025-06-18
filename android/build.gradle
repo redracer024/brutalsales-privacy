@@ -1,58 +1,41 @@
-// Apply fix-expo-modules after projects are loaded
-apply from: file("fix-expo-modules.gradle")
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
     ext {
-        buildToolsVersion = '33.0.0'
-        minSdkVersion = 24
-        compileSdkVersion = 33
-        targetSdkVersion = 33
-        kotlinVersion = '1.7.20'
-        ndkVersion = "23.1.7779620"
+        buildToolsVersion = findProperty('android.buildToolsVersion') ?: '35.0.0'
+        minSdkVersion = Integer.parseInt(findProperty('android.minSdkVersion') ?: '24')
+        compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '35')
+        targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '34')
+        kotlinVersion = findProperty('android.kotlinVersion') ?: '1.9.25'
 
-        // Define common Java version for consistency
-        javaVersion = JavaVersion.VERSION_11
+        ndkVersion = "26.1.10909125"
     }
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        classpath 'com.google.gms:google-services:4.3.15'
-        classpath 'com.android.tools.build:gradle:7.3.1'
+        classpath('com.android.tools.build:gradle')
         classpath('com.facebook.react:react-native-gradle-plugin')
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
+        classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
     }
 }
+
+apply plugin: "com.facebook.react.rootproject"
 
 allprojects {
     repositories {
+        maven {
+            // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+            url(new File(['node', '--print', "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim(), '../android'))
+        }
+        maven {
+            // Android JSC is installed from npm
+            url(new File(['node', '--print', "require.resolve('jsc-android/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim(), '../dist'))
+        }
+
         google()
         mavenCentral()
-    }
-
-    // Apply consistent Java version to all projects
-    plugins.withType(JavaPlugin) {
-        project.tasks.withType(JavaCompile) {
-            sourceCompatibility = rootProject.ext.javaVersion
-            targetCompatibility = rootProject.ext.javaVersion
-        }
-    }
-
-    // Apply consistent Kotlin version to all projects
-    plugins.withType(org.jetbrains.kotlin.gradle.plugin.KotlinBasePluginWrapper) {
-        project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
-            kotlinOptions {
-                jvmTarget = '11'
-            }
-        }
-    }
-}
-
-// This is needed to stop the classifier property error in newer Gradle versions
-tasks.withType(Jar) {
-    // Remove classifier properties which are no longer supported
-    if (hasProperty('classifier')) {
-        archiveClassifier.set(classifier)
+        maven { url 'https://www.jitpack.io' }
     }
 }

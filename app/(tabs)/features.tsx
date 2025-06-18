@@ -26,7 +26,8 @@ import {
   MessageSquare,
   X,
   Send,
-  Plus
+  Plus,
+  ArrowLeft
 } from 'lucide-react-native';
 import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
@@ -79,7 +80,7 @@ export default function FeaturesScreen() {
         title: 'Dark/Light Theme Toggle',
         description: 'Switch between dark and light themes for better user experience',
         category: 'ui',
-        votes: 342,
+        votes: 0,
         userVoted: false,
         status: 'voting',
         requiredTier: 'free',
@@ -92,8 +93,8 @@ export default function FeaturesScreen() {
         title: 'Description Templates',
         description: 'Pre-made templates for different product categories (electronics, clothing, etc.)',
         category: 'productivity',
-        votes: 289,
-        userVoted: true,
+        votes: 0,
+        userVoted: false,
         status: 'voting',
         requiredTier: 'premium',
         estimatedDevelopmentTime: '1-2 weeks',
@@ -105,7 +106,7 @@ export default function FeaturesScreen() {
         title: 'Description History',
         description: 'Save and view your previously generated descriptions',
         category: 'productivity',
-        votes: 234,
+        votes: 0,
         userVoted: false,
         status: 'voting',
         requiredTier: 'premium',
@@ -118,7 +119,7 @@ export default function FeaturesScreen() {
         title: 'AI Style Personalities',
         description: 'Choose from different AI personalities (Professional, Funny, Aggressive Salesperson, etc.)',
         category: 'ai',
-        votes: 198,
+        votes: 0,
         userVoted: false,
         status: 'voting',
         requiredTier: 'premium',
@@ -131,7 +132,7 @@ export default function FeaturesScreen() {
         title: 'Seasonal Optimization',
         description: 'Automatically adjust descriptions for holidays and seasonal trends',
         category: 'ai',
-        votes: 176,
+        votes: 0,
         userVoted: false,
         status: 'voting',
         requiredTier: 'premium',
@@ -144,7 +145,7 @@ export default function FeaturesScreen() {
         title: 'Photo-to-Description AI',
         description: 'Upload product photos and automatically generate descriptions from visual analysis',
         category: 'ai',
-        votes: 167,
+        votes: 0,
         userVoted: false,
         status: 'voting',
         requiredTier: 'pro',
@@ -157,7 +158,7 @@ export default function FeaturesScreen() {
         title: 'Social Media Integration',
         description: 'Generate optimized descriptions for Instagram, Facebook, TikTok Shop',
         category: 'integration',
-        votes: 145,
+        votes: 0,
         userVoted: false,
         status: 'voting',
         requiredTier: 'pro',
@@ -170,7 +171,7 @@ export default function FeaturesScreen() {
         title: 'Competitor Analysis',
         description: 'Analyze competitor listings and suggest improvements to your descriptions',
         category: 'business',
-        votes: 134,
+        votes: 0,
         userVoted: false,
         status: 'voting',
         requiredTier: 'pro',
@@ -183,7 +184,7 @@ export default function FeaturesScreen() {
         title: 'Mobile App',
         description: 'Native iOS and Android app for generating descriptions on the go',
         category: 'productivity',
-        votes: 123,
+        votes: 0,
         userVoted: false,
         status: 'voting',
         requiredTier: 'premium',
@@ -196,7 +197,7 @@ export default function FeaturesScreen() {
         title: 'Export to Multiple Formats',
         description: 'Export descriptions to PDF, Word, or plain text files',
         category: 'productivity',
-        votes: 112,
+        votes: 0,
         userVoted: false,
         status: 'voting',
         requiredTier: 'free',
@@ -356,21 +357,18 @@ export default function FeaturesScreen() {
         <AdBanner isPremium={isPremium} />
 
         <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft size={24} color="#D97706" />
+          </TouchableOpacity>
           <View style={styles.headerContent}>
             <Lightbulb size={32} color="#D97706" />
             <Text style={styles.title}>Feature Roadmap</Text>
             <Text style={styles.subtitle}>Vote on features you want to see next!</Text>
           </View>
-          
-          <View style={styles.headerButtons}>
-            <TouchableOpacity 
-              style={styles.submitButton}
-              onPress={() => setShowSubmitModal(true)}
-            >
-              <Plus size={18} color="#FFFFFF" />
-              <Text style={styles.submitButtonText}>Suggest</Text>
-            </TouchableOpacity>
-          </View>
+          <View style={styles.headerPlaceholder} />
         </View>
 
         {/* Category Filter */}
@@ -456,10 +454,10 @@ export default function FeaturesScreen() {
                     <Text style={styles.inputLabel}>Feature Title *</Text>
                     <TextInput
                       style={styles.textInput}
+                      placeholder="Feature Title"
+                      placeholderTextColor="rgba(217, 119, 6, 0.5)"
                       value={newFeature.title}
                       onChangeText={(text) => setNewFeature({ ...newFeature, title: text })}
-                      placeholder="e.g., Voice Input for Product Details"
-                      placeholderTextColor="#6B7280"
                     />
                   </View>
 
@@ -467,13 +465,13 @@ export default function FeaturesScreen() {
                     <Text style={styles.inputLabel}>Description *</Text>
                     <TextInput
                       style={[styles.textInput, styles.textArea]}
-                      value={newFeature.description}
-                      onChangeText={(text) => setNewFeature({ ...newFeature, description: text })}
-                      placeholder="Describe how this feature would work and why it would be valuable..."
-                      placeholderTextColor="#6B7280"
+                      placeholder="Feature Description"
+                      placeholderTextColor="rgba(217, 119, 6, 0.5)"
                       multiline
                       numberOfLines={4}
                       textAlignVertical="top"
+                      value={newFeature.description}
+                      onChangeText={(text) => setNewFeature({ ...newFeature, description: text })}
                     />
                   </View>
 
@@ -537,41 +535,35 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 16,
   },
+  backButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(217, 119, 6, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.3)',
+  },
+  headerPlaceholder: {
+    width: 40,
+  },
   headerContent: {
     flex: 1,
     alignItems: 'center',
   },
   title: {
-    fontSize: 24,
-    fontFamily: 'Cinzel-Bold',
-    color: '#FFFFFF',
+    fontSize: 28,
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
     marginTop: 8,
+    textShadowColor: 'rgba(217, 119, 6, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#A78BFA',
+    color: '#D97706',
     marginTop: 4,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(217, 119, 6, 0.3)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#D97706',
-    gap: 4,
-  },
-  submitButtonText: {
-    fontSize: 12,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
+    opacity: 0.8,
   },
   categoryContainer: {
     marginBottom: 16,
@@ -638,7 +630,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   featureCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(217, 119, 6, 0.1)',
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -657,9 +649,12 @@ const styles = StyleSheet.create({
   },
   featureTitle: {
     fontSize: 18,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
     marginBottom: 8,
+    textShadowColor: 'rgba(217, 119, 6, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   featureMeta: {
     flexDirection: 'row',
@@ -710,9 +705,10 @@ const styles = StyleSheet.create({
   featureDescription: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#C4B5FD',
+    color: '#D97706',
     lineHeight: 20,
     marginBottom: 16,
+    opacity: 0.8,
   },
   featureFooter: {
     flexDirection: 'row',
@@ -722,12 +718,14 @@ const styles = StyleSheet.create({
   featureDetails: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    color: '#D97706',
+    opacity: 0.7,
   },
   featureSubmitter: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    color: '#D97706',
+    opacity: 0.7,
   },
   modalOverlay: {
     flex: 1,
@@ -753,8 +751,11 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontFamily: 'Cinzel-SemiBold',
-    color: '#FFFFFF',
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
+    textShadowColor: 'rgba(217, 119, 6, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   modalCloseButton: {
     padding: 4,
@@ -768,18 +769,19 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
-    color: '#C4B5FD',
+    color: '#D97706',
     marginBottom: 8,
+    opacity: 0.9,
   },
   textInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(217, 119, 6, 0.1)',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
     fontFamily: 'Inter-Regular',
-    color: '#FFFFFF',
+    color: '#D97706',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(217, 119, 6, 0.3)',
   },
   textArea: {
     height: 100,
