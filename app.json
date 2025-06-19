@@ -12,7 +12,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon.png",
+          "image": "./assets/splash.png",
           "backgroundColor": "#0F0A19",
           "imageResizeMode": "contain"
         }
@@ -23,7 +23,12 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.brutalsales.app"
+      "bundleIdentifier": "com.brutalsales.app",
+      "splash": {
+        "image": "./assets/splash.png",
+        "backgroundColor": "#0F0A19",
+        "resizeMode": "contain"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -33,10 +38,16 @@
       "package": "com.brutalsales.app",
       "permissions": [
         "com.android.vending.BILLING"
-      ]
+      ],
+      "splash": {
+        "image": "./assets/splash.png",
+        "backgroundColor": "#0F0A19",
+        "resizeMode": "contain"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "scheme": "brutalsales"
   }
 }

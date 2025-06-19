@@ -70,7 +70,6 @@ export default function SignupScreen() {
     setErrors({});
 
     try {
-      console.log('Starting signup process...');
       const { data, error } = await supabase.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
@@ -82,41 +81,19 @@ export default function SignupScreen() {
         },
       });
 
-      console.log('Signup response:', { data, error });
-
       if (error) {
-        console.error('Signup error:', error);
-        if (error.message.includes('already registered')) {
-          setErrors({ email: 'This email is already registered. Try signing in instead.' });
-        } else {
-          setErrors({ general: error.message });
-        }
+        Alert.alert('Sign Up Failed', error.message);
         return;
       }
 
-      if (data.user) {
-        if (data.session) {
-          // User is signed in immediately
-          console.log('User signed in immediately:', data.session);
-          router.replace('/(tabs)');
-        } else {
-          // Email confirmation required
-          console.log('Email confirmation required');
-          Alert.alert(
-            'Check your email',
-            'We sent you a confirmation email. Please check your inbox and confirm your email address to continue.',
-            [
-              {
-                text: 'OK',
-                onPress: () => router.replace('/(auth)/login')
-              }
-            ]
-          );
-        }
+      if (data.session) {
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Sign Up Successful', 'Please check your email for a confirmation link.');
+        router.push('/(auth)/login');
       }
-    } catch (error: any) {
-      console.error('Unexpected signup error:', error);
-      setErrors({ general: 'An unexpected error occurred. Please try again.' });
+    } catch (e: any) {
+      Alert.alert('Sign Up Error', e.message || 'An unexpected error occurred.');
     } finally {
       setIsLoading(false);
     }
@@ -256,7 +233,6 @@ export default function SignupScreen() {
                     router.replace('/(tabs)');
                   }
                 } catch (error: any) {
-                  console.error('Google sign in error:', error);
                   Alert.alert('Error', error.message || 'Failed to sign in with Google');
                 }
               }}

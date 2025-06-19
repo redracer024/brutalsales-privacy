@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -16,7 +16,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { Platform, View, ActivityIndicator } from 'react-native';
+import { Platform, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { GooglePlayBilling } from '../lib/googlePlayBilling';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { AuthProvider } from '@/lib/auth';
@@ -25,6 +25,8 @@ import { analyticsService, ANALYTICS_EVENTS } from '../lib/analytics';
 import DevMenu from '@/components/DevMenu';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import AnalyticsReport from '@/components/AnalyticsReport';
+import { Video, ResizeMode } from 'expo-av';
+import '@/lib/firebase'; // Initialize Firebase for web
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -32,6 +34,7 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   useFrameworkReady();
   const [isReady, setIsReady] = useState(false);
+  const [videoFinished, setVideoFinished] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const pathname = usePathname();
 
@@ -103,6 +106,27 @@ export default function RootLayout() {
     );
   }
 
+  if (!videoFinished) {
+    return (
+      <View style={styles.videoContainer}>
+        <Video
+          source={require('../assets/splash-video.mp4')}
+          rate={1.0}
+          volume={0.0}
+          isMuted
+          resizeMode={ResizeMode.CONTAIN}
+          shouldPlay
+          style={StyleSheet.absoluteFill}
+          onPlaybackStatusUpdate={(status) => {
+            if (status.isLoaded && status.didJustFinish) {
+              setVideoFinished(true);
+            }
+          }}
+        />
+      </View>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <AuthProvider>
@@ -130,13 +154,6 @@ export default function RootLayout() {
           />
           <Stack.Screen 
             name="terms" 
-            options={{ 
-              headerShown: false,
-              animation: 'slide_from_bottom',
-            }} 
-          />
-          <Stack.Screen 
-            name="features" 
             options={{ 
               headerShown: false,
               animation: 'slide_from_bottom',
@@ -180,3 +197,10 @@ export default function RootLayout() {
     </ErrorBoundary>
   );
 }
+
+const styles = StyleSheet.create({
+  videoContainer: {
+    flex: 1,
+    backgroundColor: '#0F0A19',
+  },
+});

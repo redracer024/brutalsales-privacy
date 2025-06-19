@@ -1,40 +1,60 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 
-interface AdManagerConfig {
-  isPremium: boolean;
-  showInterstitialAfter: number; // Number of actions before showing interstitial
-}
+const getAdUnitId = (adUnitId: string) => (__DEV__ ? TestIds.INTERSTITIAL : adUnitId);
 
-export function useAdManager(config: AdManagerConfig) {
-  const [actionCount, setActionCount] = useState(0);
-  const [showInterstitial, setShowInterstitial] = useState(false);
+export function useAdManager(adUnitId: string, onAdDismissed?: () => void) {
+  const [interstitialAd, setInterstitialAd] = useState<InterstitialAd | null>(null);
+  const [isAdLoaded, setIsAdLoaded] = useState(false);
 
-  const incrementActionCount = () => {
-    if (!config.isPremium) {
-      setActionCount(prev => {
-        const newCount = prev + 1;
-        if (newCount >= config.showInterstitialAfter) {
-          setShowInterstitial(true);
-          return 0; // Reset counter
-        }
-        return newCount;
-      });
+  const loadAd = useCallback(() => {
+    const ad = InterstitialAd.createForAdRequest(getAdUnitId(adUnitId), {
+      requestNonPersonalizedAdsOnly: true,
+    });
+    setInterstitialAd(ad);
+    ad.load();
+  }, [adUnitId]);
+
+  useEffect(() => {
+    loadAd();
+  }, [loadAd]);
+
+  useEffect(() => {
+    if (!interstitialAd) {
+      return;
     }
-  };
 
-  const hideInterstitial = () => {
-    setShowInterstitial(false);
-  };
+    const loadListener = interstitialAd.addAdEventListener(AdEventType.LOADED, () => {
+      setIsAdLoaded(true);
+    });
 
-  const resetCounter = () => {
-    setActionCount(0);
-  };
+    const errorListener = interstitialAd.addAdEventListener(AdEventType.ERROR, () => {
+      setIsAdLoaded(false);
+    });
+
+    const closeListener = interstitialAd.addAdEventListener(AdEventType.CLOSED, () => {
+      onAdDismissed?.();
+      setIsAdLoaded(false);
+      loadAd(); // Pre-load the next ad
+    });
+
+    return () => {
+      loadListener();
+      errorListener();
+      closeListener();
+    };
+  }, [interstitialAd, loadAd, onAdDismissed]);
+
+  const showAd = useCallback(() => {
+    if (isAdLoaded && interstitialAd) {
+      interstitialAd.show();
+    } else {
+      onAdDismissed?.();
+    }
+  }, [isAdLoaded, interstitialAd, onAdDismissed]);
 
   return {
-    showInterstitial,
-    hideInterstitial,
-    incrementActionCount,
-    resetCounter,
-    actionCount,
+    isAdLoaded,
+    showAd,
   };
-}
+} 

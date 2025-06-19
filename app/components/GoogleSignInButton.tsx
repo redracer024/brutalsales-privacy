@@ -1,25 +1,78 @@
 import React from 'react';
-import { TouchableOpacity, Text, Image, StyleSheet, ActivityIndicator } from 'react-native';
+import { Platform, TouchableOpacity, Text, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { googleSignIn } from '../utils/supabase';
+import { supabase } from '../lib/supabase';
 
-export const GoogleSignInButton = () => {
+let GoogleLogin: any = null;
+if (Platform.OS === 'web') {
+  // Dynamically require to avoid breaking native builds
+  GoogleLogin = require('react-google-login').GoogleLogin;
+}
+
+export default function GoogleSignInButton({ onSuccess, onError }: { onSuccess?: (data: any) => void, onError?: (err: any) => void }) {
   const [loading, setLoading] = React.useState(false);
 
-  const handleGoogleSignIn = async () => {
+  const handleNativeSignIn = async () => {
     try {
       setLoading(true);
-      await googleSignIn();
+      const data = await googleSignIn();
+      onSuccess?.(data);
     } catch (error) {
+      onError?.(error);
       console.error('Google sign in failed:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  if (Platform.OS === 'web' && GoogleLogin) {
+    // Use react-google-login for web
+    const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+    return (
+      <GoogleLogin
+        clientId={webClientId}
+        buttonText="Sign in with Google"
+        onSuccess={async (response: any) => {
+          try {
+            // response.tokenId is the id_token
+            const { data, error } = await googleSignInWeb(response.tokenId);
+            if (error) throw error;
+            onSuccess?.(data);
+          } catch (err) {
+            onError?.(err);
+          }
+        }}
+        onFailure={onError}
+        cookiePolicy={'single_host_origin'}
+        render={(renderProps: any) => (
+          <button
+            onClick={renderProps.onClick}
+            disabled={renderProps.disabled || loading}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: '#fff',
+              border: 'none',
+              borderRadius: 4,
+              padding: 12,
+              margin: 8,
+              boxShadow: '0px 2px 3.84px rgba(0, 0, 0, 0.25)',
+              cursor: 'pointer'
+            }}
+          >
+            <img src="/assets/images/google-logo.png" alt="Google" style={{ width: 24, height: 24, marginRight: 12 }} />
+            {loading ? <span>Loading...</span> : <span>Sign in with Google</span>}
+          </button>
+        )}
+      />
+    );
+  }
+
+  // Native button
   return (
     <TouchableOpacity
       style={styles.button}
-      onPress={handleGoogleSignIn}
+      onPress={handleNativeSignIn}
       disabled={loading}
     >
       <Image
@@ -33,7 +86,15 @@ export const GoogleSignInButton = () => {
       )}
     </TouchableOpacity>
   );
-};
+}
+
+// Helper for web sign-in with Supabase
+async function googleSignInWeb(idToken: string) {
+  return supabase.auth.signInWithIdToken({
+    provider: 'google',
+    token: idToken,
+  });
+}
 
 const styles = StyleSheet.create({
   button: {
@@ -43,11 +104,20 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     padding: 12,
     marginVertical: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+      },
+      android: {
+        elevation: 2,
+      },
+      web: {
+        boxShadow: '0px 2px 3.84px rgba(0, 0, 0, 0.25)',
+      },
+    }),
   },
   logo: {
     width: 24,

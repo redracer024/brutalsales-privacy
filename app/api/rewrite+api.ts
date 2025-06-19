@@ -1,6 +1,6 @@
 import { OpenAI } from 'openai';
-import { showRewriteInterstitial } from '@/utils/admob';
 import { getToneInstruction, isValidTone } from '@/utils/types';
+import { createClient } from '@supabase/supabase-js';
 
 // Initialize OpenAI client with DeepSeek configuration
 const openai = new OpenAI({
@@ -8,10 +8,17 @@ const openai = new OpenAI({
   apiKey: process.env.EXPO_PUBLIC_DEEPSEEK_API_KEY,
 });
 
+// Initialize Supabase client for server-side operations
+const supabase = createClient(
+  process.env.EXPO_PUBLIC_SUPABASE_URL || '',
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || ''
+);
+
 interface RewriteRequest {
   originalText: string;
   tone?: string;
   acceptOffers?: boolean;
+  userId?: string;
 }
 
 export async function POST(req: Request) {
@@ -24,11 +31,28 @@ export async function POST(req: Request) {
       }), { status: 400 });
     }
 
+    // Increment daily usage if user is authenticated
+    if (body.userId) {
+      try {
+        const { error: usageError } = await supabase.rpc('increment_daily_usage', {
+          p_user_id: body.userId
+        });
+
+        if (usageError) {
+          console.error('Error incrementing usage:', usageError);
+          // Continue with the rewrite even if usage tracking fails
+        }
+      } catch (usageError) {
+        console.error('Failed to track usage:', usageError);
+        // Continue with the rewrite even if usage tracking fails
+      }
+    }
+
     const tone = isValidTone(body.tone) ? body.tone : 'professional';
     const toneInstruction = getToneInstruction(tone);
     const acceptOffers = body.acceptOffers ?? true;
 
-    const prompt = `Rewrite this product description in a ${tone} tone. Keep the key information but make it more engaging and compelling:
+    const prompt = `Rewrite this product description in a ${tone} tone. Keep the key information but make it more engaging and compelling. IMPORTANT: Do NOT add details or claims that are not explicitly present in the original text. If a specification (e.g., latest model, version, mileage) is missing, do NOT invent or assume it.
 
 Original Text:
 ${body.originalText}
@@ -37,7 +61,8 @@ Instructions:
 ${toneInstruction}
 ${acceptOffers ? 'Include a line about welcoming offers that matches the tone.' : 'Do not mention anything about offers.'}
 - Keep the description concise but compelling
-- Maintain all important product details
+- Maintain all important product details **exactly as written**
+- Do NOT add or guess any new specifications or model numbers
 - Use appropriate formatting and structure
 - Add relevant emojis where appropriate
 - Create clear sections if needed`;

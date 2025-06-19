@@ -11,6 +11,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
   initialized: boolean;
+  isPremium: boolean;
+  isPremiumLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +22,8 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   refreshSession: async () => {},
   initialized: false,
+  isPremium: false,
+  isPremiumLoading: true,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -27,52 +31,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const [isPremiumLoading, setIsPremiumLoading] = useState(true);
+
+  const checkPremiumStatus = async (userId: string | undefined) => {
+    if (!userId) {
+      setIsPremium(false);
+      setIsPremiumLoading(false);
+      return;
+    }
+    try {
+      setIsPremiumLoading(true);
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('is_premium')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error; // 'PGRST116' means no rows found, which is not an error here.
+      
+      setIsPremium(data?.is_premium || false);
+    } catch (e) {
+      setIsPremium(false); // Default to not premium on error
+    } finally {
+      setIsPremiumLoading(false);
+    }
+  };
 
   const refreshSession = async () => {
     try {
       setLoading(true);
-      console.log('Refreshing session...');
       
       // Get the current session
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
-        console.error('Session error:', sessionError);
         throw sessionError;
       }
 
       if (currentSession) {
-        console.log('Setting session from current session:', currentSession.user.id);
         setSession(currentSession);
         setUser(currentSession.user);
+        await checkPremiumStatus(currentSession.user.id);
       } else {
         // Try to refresh the session
-        console.log('No current session, attempting refresh...');
         const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
         
         if (refreshError) {
           if (refreshError.message.includes('no current session')) {
-            console.log('No session to refresh');
             setSession(null);
             setUser(null);
+            setIsPremium(false);
           } else {
-            console.error('Refresh error:', refreshError);
             throw refreshError;
           }
         } else if (refreshedSession) {
-          console.log('Setting session from refreshed session:', refreshedSession.user.id);
           setSession(refreshedSession);
           setUser(refreshedSession.user);
+          await checkPremiumStatus(refreshedSession.user.id);
         } else {
-          console.log('No session after refresh');
           setSession(null);
           setUser(null);
+          setIsPremium(false);
         }
       }
     } catch (error) {
-      console.error('Error in refreshSession:', error);
       setSession(null);
       setUser(null);
+      setIsPremium(false);
     } finally {
       setLoading(false);
       setInitialized(true);
@@ -80,49 +106,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    console.log('Auth provider mounted');
-    
     // Initial session check
     refreshSession();
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session) => {
-      console.log('Auth state changed:', event, session?.user?.id);
-      
+      await checkPremiumStatus(session?.user?.id);
+
       switch (event) {
         case 'SIGNED_OUT':
-          console.log('User signed out');
           setSession(null);
           setUser(null);
-          router.replace('/(auth)/login');
+          // Wait a bit before navigation to ensure state is updated
+          setTimeout(() => {
+            router.replace('/(auth)/login');
+          }, 100);
           break;
           
         case 'SIGNED_IN':
-          console.log('User signed in:', session?.user?.id);
           setSession(session);
           setUser(session?.user ?? null);
+          // Wait a bit before navigation to ensure state is updated
+          setTimeout(() => {
+            router.replace('/(tabs)');
+          }, 100);
           break;
           
         case 'TOKEN_REFRESHED':
-          console.log('Token refreshed for user:', session?.user?.id);
           setSession(session);
           setUser(session?.user ?? null);
           break;
           
         case 'USER_UPDATED':
-          console.log('User updated:', session?.user?.id);
           setSession(session);
           setUser(session?.user ?? null);
           break;
           
         case 'INITIAL_SESSION':
-          console.log('Initial session:', session?.user?.id);
           setSession(session);
           setUser(session?.user ?? null);
+          // If we have a session on initial load, navigate to tabs
+          if (session) {
+            setTimeout(() => {
+              router.replace('/(tabs)');
+            }, 100);
+          }
           break;
           
         case 'PASSWORD_RECOVERY':
-          console.log('Password recovery for user:', session?.user?.id);
           break;
       }
 
@@ -131,7 +162,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
-      console.log('Cleaning up auth subscription');
       subscription.unsubscribe();
     };
   }, []);
@@ -144,9 +174,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       setSession(null);
       setUser(null);
-      router.replace('/(auth)/login');
+      // Wait a bit before navigation to ensure state is updated
+      setTimeout(() => {
+        router.replace('/(auth)/login');
+      }, 100);
     } catch (error) {
-      console.error('Error signing out:', error);
       Alert.alert('Error', 'Failed to sign out. Please try again.');
     } finally {
       setLoading(false);
@@ -160,6 +192,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     refreshSession,
     initialized,
+    isPremium,
+    isPremiumLoading,
   };
 
   // Don't render children until we've initialized auth

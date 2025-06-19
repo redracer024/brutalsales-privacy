@@ -25,7 +25,6 @@ export const loadFeatures = async (): Promise<Feature[]> => {
       return [];
     }
     if (!user) {
-      console.log('No user found');
       return [];
     }
 
@@ -170,6 +169,46 @@ export const suggestFeature = async (title: string, description: string, categor
     console.error('Error in suggestFeature:', error);
     return false;
   }
+};
+
+export const checkUserFeature = async (featureName: string) => {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { hasAccess: false, usageCount: 0, limit: 0, error: 'User not authenticated' };
+  }
+
+  const { data: featureData, error: featureError } = await supabase
+    .from('feature_ideas')
+    .select('*')
+    .eq('title', featureName)
+    .maybeSingle();
+
+  if (featureError) {
+    console.error('Error checking feature:', featureError);
+    return { hasAccess: false, usageCount: 0, limit: 0, error: 'Error checking feature' };
+  }
+
+  if (!featureData) {
+    return { hasAccess: false, usageCount: 0, limit: 0, error: 'Feature not found' };
+  }
+
+  const { data: usageData, error: usageError } = await supabase
+    .from('feature_usage')
+    .select('*')
+    .eq('feature_id', featureData.id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (usageError) {
+    console.error('Error checking feature usage:', usageError);
+    return { hasAccess: false, usageCount: 0, limit: 0, error: 'Error checking feature usage' };
+  }
+
+  const usageCount = usageData?.usage_count || 0;
+  const limit = featureData.usage_limit || 0;
+
+  return { hasAccess: usageCount < limit, usageCount, limit, error: null };
 };
 
 export default {};

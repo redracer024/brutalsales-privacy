@@ -15,8 +15,8 @@ export default function SettingsScreen() {
     router.push('/privacy');
   };
 
-  const openTermsOfService = () => {
-    router.push('/terms-of-service');
+  const openTermsOfSale = () => {
+    router.push('/terms');
   };
 
   return (
@@ -50,11 +50,11 @@ export default function SettingsScreen() {
 
           <TouchableOpacity 
             style={styles.button}
-            onPress={openTermsOfService}
+            onPress={openTermsOfSale}
           >
             <View style={styles.buttonContent}>
               <FileText size={20} color="#fff" />
-              <Text style={styles.buttonText}>Terms of Service</Text>
+              <Text style={styles.buttonText}>Terms of Sale</Text>
             </View>
           </TouchableOpacity>
 

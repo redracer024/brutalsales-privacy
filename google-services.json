@@ -7,12 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1086197989974:android:0da818e33d81714d17b1f7",
+        "mobilesdk_app_id": "1:1086197989974:android:5d8d927e1dcd320f17b1f7",
         "android_client_info": {
-          "package_name": "com.brutalsales.app"
+          "package_name": "com.brutalhonest.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1086197989974-4sincgs8r9dr1uf6i4u8jo0akcb3stqq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBEJU1kQ_mw-DDJYBtsyB0EIay1U96OwO4"
@@ -20,7 +25,50 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1086197989974-4sincgs8r9dr1uf6i4u8jo0akcb3stqq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      },
+      "admob_app_id": "ca-app-pub-8865921274070980~7438698780"
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1086197989974:android:0da818e33d81714d17b1f7",
+        "android_client_info": {
+          "package_name": "com.brutalsales.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1086197989974-1agtvmvmppircn2ucf5rchd0pvci0t55.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.brutalsales.app",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "1086197989974-4sincgs8r9dr1uf6i4u8jo0akcb3stqq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEJU1kQ_mw-DDJYBtsyB0EIay1U96OwO4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1086197989974-4sincgs8r9dr1uf6i4u8jo0akcb3stqq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -4,7 +4,7 @@ import { Video, ResizeMode } from 'expo-av';
 
 const { width, height } = Dimensions.get('window');
 
-export const SplashScreen = () => {
+export default function SplashScreen() {
   const videoRef = useRef<Video>(null);
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export const SplashScreen = () => {
       />
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {

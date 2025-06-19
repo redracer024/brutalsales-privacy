@@ -10,16 +10,18 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
-  Clipboard,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { ArrowLeft, Wand as Wand2, Copy, Smile, Briefcase, Zap, Laugh } from 'lucide-react-native';
+import Constants from 'expo-constants';
 import AdBanner from '@/components/AdBanner';
-import InterstitialAd from '@/components/InterstitialAd';
 import { useAdManager } from '@/hooks/useAdManager';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
+
+const AD_UNIT_ID = 'ca-app-pub-8865921274070980/4413010386';
 
 export default function RewriteScreen() {
   const { user, loading } = useAuth();
@@ -32,9 +34,8 @@ export default function RewriteScreen() {
   const [userTerms, setUserTerms] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const adManager = useAdManager({
-    isPremium,
-    showInterstitialAfter: 1, // Show interstitial before rewriting
+  const { showAd, isAdLoaded } = useAdManager(AD_UNIT_ID, () => {
+    performRewrite();
   });
 
   useEffect(() => {
@@ -119,15 +120,50 @@ export default function RewriteScreen() {
       setIsRewriting(true);
       setError(null);
 
-      // Show interstitial ad if needed
-      if (!isPremium) {
-        adManager.incrementActionCount();
-        if (adManager.showInterstitial) {
-          return; // Let the interstitial ad handle the rewrite
-        }
+      // Show interstitial ad before generation for free users
+      if (!isPremium && isAdLoaded) {
+        showAd();
+      } else {
+        // If ad is not loaded or user is premium, generate directly
+        await performRewrite();
       }
 
-      const response = await fetch('/api/rewrite', {
+    } catch (error: any) {
+      console.error('Rewrite error:', error);
+      Alert.alert(
+        'Rewrite Failed',
+        error.message || 'We encountered an issue rewriting your text. Please try again.'
+      );
+    }
+    setIsRewriting(false);
+  };
+
+  const performRewrite = async () => {
+    if (!originalText.trim()) {
+      Alert.alert('Error', 'Please enter some text to rewrite');
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Check if user is guest
+      if (session?.user?.email === 'guest@brutalsales.app') {
+        Alert.alert(
+          'Premium Feature',
+          'Rewriting descriptions is a premium feature. Please sign up to access this feature.',
+          [
+            { text: 'Sign Up', onPress: () => router.push('/(auth)/signup') },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+        return;
+      }
+
+      const baseUrl = (Constants.expoConfig?.extra?.apiUrl as string) || '';
+      const endpoint = `${baseUrl}/api/rewrite`;
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,6 +172,7 @@ export default function RewriteScreen() {
           originalText,
           tone: selectedTone,
           acceptOffers,
+          userId: session?.user?.id
         }),
       });
 
@@ -169,9 +206,14 @@ export default function RewriteScreen() {
     setIsRewriting(false);
   };
 
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     try {
-      Clipboard.setString(rewrittenText);
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(rewrittenText);
+      } else {
+        const Clipboard = require('@react-native-clipboard/clipboard').default;
+        Clipboard.setString(rewrittenText);
+      }
       Alert.alert('Success', 'Description copied to clipboard');
     } catch (error) {
       console.error('Copy error:', error);
@@ -180,7 +222,7 @@ export default function RewriteScreen() {
   };
 
   const handleUpgradeToPremium = () => {
-    router.push('/(tabs)/premium');
+    router.push('/premium');
   };
 
   if (loading) {
@@ -200,90 +242,73 @@ export default function RewriteScreen() {
     <SafeAreaView style={styles.container}>
       <LinearGradient
         colors={['#0F0A19', '#1E1B4B', '#312E81']}
-        style={styles.gradient}
+        style={StyleSheet.absoluteFill}
       >
-        {/* Ad Banner */}
-        <AdBanner isPremium={isPremium} />
+        <ScrollView>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <ArrowLeft size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Rewrite Description</Text>
+            <View style={styles.placeholder} />
+          </View>
 
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Rewrite Description</Text>
-          <View style={styles.placeholder} />
-        </View>
-
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Original Text Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.sectionTitle}>Paste Your Original Text</Text>
+          {/* Input Form */}
+          <View style={styles.formContainer}>
+            {/* Original Text Input */}
+            <Text style={styles.inputLabel}>Original Description</Text>
             <TextInput
-              style={styles.textArea}
+              style={[styles.textInput, styles.textArea]}
               value={originalText}
               onChangeText={setOriginalText}
-              placeholder="Paste your existing description here to transform it with AI magic..."
+              placeholder="Paste or type the description you want to improve"
               placeholderTextColor="#6B7280"
               multiline
               numberOfLines={6}
-              textAlignVertical="top"
+              editable={!isRewriting}
             />
-            <Text style={styles.characterCount}>
-              {originalText.length} characters
-            </Text>
-          </View>
 
-          <View style={styles.toggleContainer}>
-            <Text style={styles.toggleLabel}>Accept Offers</Text>
-            <Switch
-              value={acceptOffers}
-              onValueChange={setAcceptOffers}
-              trackColor={{ false: '#4B5563', true: '#D97706' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          {/* Tone Selection */}
-          <View style={styles.toneContainer}>
-            <Text style={styles.sectionTitle}>Choose Your Tone</Text>
+            {/* Tone Picker Grid */}
+            <Text style={[styles.inputLabel, { marginTop: 20 }]}>Tone</Text>
             <View style={styles.toneGrid}>
-              {toneOptions.map((tone) => {
-                const IconComponent = tone.icon;
-                const isSelected = selectedTone === tone.id;
-                
-                return (
-                  <TouchableOpacity
-                    key={tone.id}
+              {toneOptions.map(({ id, label, icon: Icon, color }) => (
+                <TouchableOpacity
+                  key={id}
+                  style={[
+                    styles.toneOption,
+                    selectedTone === id && styles.toneOptionSelected,
+                  ]}
+                  onPress={() => setSelectedTone(id)}
+                  disabled={isRewriting}
+                >
+                  <Icon size={24} color={selectedTone === id ? '#FFFFFF' : color} />
+                  <Text
                     style={[
-                      styles.toneOption,
-                      isSelected && { borderColor: tone.color }
+                      styles.toneLabel,
+                      selectedTone === id && styles.toneLabelSelected,
                     ]}
-                    onPress={() => setSelectedTone(tone.id)}
                   >
-                    <IconComponent
-                      size={24}
-                      color={isSelected ? tone.color : '#9CA3AF'}
-                    />
-                    <Text
-                      style={[
-                        styles.toneLabel,
-                        isSelected && { color: tone.color }
-                      ]}
-                    >
-                      {tone.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          </View>
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
+            {/* Accept offers toggle */}
+            <View style={styles.toggleContainer}>
+              <Text style={styles.toggleLabel}>Mention that offers are welcome</Text>
+              <Switch
+                value={acceptOffers}
+                onValueChange={setAcceptOffers}
+                thumbColor={acceptOffers ? '#D97706' : '#6B7280'}
+                trackColor={{ false: '#6B7280', true: '#FBBF24' }}
+                disabled={isRewriting}
+              />
+            </View>
+
+            {/* Rewrite Button */}
             <TouchableOpacity
-              style={[styles.rewriteButton, isRewriting && styles.buttonDisabled]}
+              style={[styles.generateButton, isRewriting && styles.buttonDisabled]}
               onPress={handleRewrite}
               disabled={isRewriting}
             >
@@ -292,52 +317,33 @@ export default function RewriteScreen() {
                 style={styles.buttonGradient}
               >
                 <Wand2 size={20} color="#FFFFFF" />
-                <Text style={styles.buttonText}>
-                  {isRewriting ? 'Rewriting...' : 'Rewrite Description'}
+                <Text style={styles.generateButtonText}>
+                  {isRewriting ? 'Rewriting...' : 'Rewrite'}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
 
-          {/* Results Section */}
-          {rewrittenText && (
-            <View style={styles.resultsContainer}>
-              <View style={styles.resultsHeader}>
-                <Text style={styles.resultsTitle}>Rewritten Description</Text>
-                <View style={styles.resultsActions}>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={copyToClipboard}
-                  >
-                    <Copy size={20} color="#D97706" />
-                  </TouchableOpacity>
-                </View>
+          {/* Output */}
+          {rewrittenText ? (
+            <View style={styles.outputContainer}>
+              <Text style={styles.outputLabel}>✨ Rewritten Description</Text>
+              <View style={styles.outputBox}>
+                <Text style={styles.outputText}>{rewrittenText}</Text>
               </View>
-              <Text style={styles.rewrittenText}>{rewrittenText}</Text>
+              <TouchableOpacity style={styles.copyButton} onPress={copyToClipboard}>
+                <Copy size={18} color="#FFFFFF" />
+                <Text style={styles.buttonText}>Copy</Text>
+              </TouchableOpacity>
             </View>
-          )}
-
-          {/* Premium Upgrade Banner */}
-          {!isPremium && (
-            <TouchableOpacity
-              style={styles.upgradeBanner}
-              onPress={handleUpgradeToPremium}
-            >
-              <Text style={styles.upgradeText}>
-                Upgrade to Premium for unlimited rewrites!
-              </Text>
-            </TouchableOpacity>
-          )}
+          ) : null}
         </ScrollView>
-
-        {/* Interstitial Ad */}
-        <InterstitialAd
-          visible={adManager.showInterstitial}
-          onClose={adManager.hideInterstitial}
-          onUpgrade={handleUpgradeToPremium}
-          onAdDismissedAction={handleRewrite}
-          isPremium={isPremium}
-        />
+        {isRewriting && (
+          <View style={styles.loadingOverlay} pointerEvents="none">
+            <ActivityIndicator size="large" color="#D97706" />
+          </View>
+        )}
+        {!isRewriting && <AdBanner />}
       </LinearGradient>
     </SafeAreaView>
   );
@@ -372,131 +378,122 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40,
   },
-  scrollContent: {
+  formContainer: {
     padding: 16,
   },
-  inputContainer: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
+  inputLabel: {
     fontSize: 16,
     fontFamily: 'EagleLake-Regular',
     color: '#D97706',
     marginBottom: 12,
   },
-  textArea: {
-    backgroundColor: '#1F2937',
+  textInput: {
+    backgroundColor: '#111827',
     borderRadius: 12,
     padding: 16,
-    color: '#FFFFFF',
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    minHeight: 120,
+    color: '#FBBF24',
   },
-  characterCount: {
-    fontSize: 12,
+  textArea: {
+    height: 120,
+  },
+  toneGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  toneOption: {
+    padding: 12,
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  toneOptionSelected: {
+    backgroundColor: '#374151',
+  },
+  toneLabel: {
+    fontSize: 16,
     fontFamily: 'Inter-Regular',
-    color: '#9CA3AF',
+    color: '#FFFFFF',
     marginTop: 8,
-    textAlign: 'right',
+  },
+  toneLabelSelected: {
+    fontWeight: 'bold',
   },
   toggleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   toggleLabel: {
     fontSize: 16,
-    fontFamily: 'EagleLake-Regular',
-    color: '#D97706',
+    fontFamily: 'Inter-Regular',
+    color: '#FFFFFF',
+    marginRight: 8,
   },
-  toneContainer: {
-    marginBottom: 24,
-  },
-  toneGrid: {
+  generateButton: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  toneOption: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#1F2937',
-    borderRadius: 12,
-    padding: 16,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  toneLabel: {
-    fontSize: 14,
-    fontFamily: 'EagleLake-Regular',
-    color: '#D97706',
-    marginTop: 8,
-  },
-  actionButtons: {
-    marginBottom: 24,
-  },
-  rewriteButton: {
+    justifyContent: 'center',
+    padding: 16,
     borderRadius: 12,
-    overflow: 'hidden',
   },
   buttonDisabled: {
-    opacity: 0.7,
+    backgroundColor: '#6B7280',
   },
   buttonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    backgroundColor: '#111827',
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  generateButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FBBF24',
+    marginLeft: 8,
+  },
+  outputContainer: {
+    padding: 16,
+  },
+  outputLabel: {
+    fontSize: 16,
+    fontFamily: 'EagleLake-Regular',
+    color: '#D97706',
+    marginBottom: 12,
+  },
+  outputBox: {
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    padding: 16,
+  },
+  outputText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#FFFFFF',
+    lineHeight: 24,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: '#374151',
+    borderRadius: 12,
+    marginTop: 16,
   },
   buttonText: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     color: '#FFFFFF',
     marginLeft: 8,
-  },
-  resultsContainer: {
-    backgroundColor: '#1F2937',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  resultsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  resultsTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
-  },
-  resultsActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    padding: 8,
-  },
-  rewrittenText: {
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#FFFFFF',
-    lineHeight: 24,
-  },
-  upgradeBanner: {
-    backgroundColor: '#374151',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  upgradeText: {
-    fontSize: 16,
-    fontFamily: 'Inter-Medium',
-    color: '#D97706',
   },
 });

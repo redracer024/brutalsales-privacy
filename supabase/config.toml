@@ -58,12 +58,11 @@ double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
 enable_confirmations = false
 
-[auth.google]
+[auth.external.google]
 enabled = true
-client_id = "1086197989974-ukknjt4bc0ucb9dbtuoo7fo3chfo48ha.apps.googleusercontent.com"
-secret = "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"
-# Overrides the default auth redirectUrl.
-redirect_uri = "brutalsales://auth/callback"
+client_id = "1086197989974-esh8vslfkbg8afujrfljrvo356g03u37.apps.googleusercontent.com"
+secret = ""
+redirect_uri = "http://localhost:8081/auth/callback"
 # Overrides the default auth provider URL. Used to support self-hosted gitlab, single-tenant Azure,
 # or any other third-party OIDC providers.
 url = "https://accounts.google.com" 

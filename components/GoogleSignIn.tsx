@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { TouchableOpacity, Text, StyleSheet, Image, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri, useAuthRequest } from 'expo-auth-session';
-import * as Google from 'expo-auth-session/providers/google';
-
-WebBrowser.maybeCompleteAuthSession();
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Platform, View, ActivityIndicator, Text } from 'react-native';
+import { supabase } from '@/lib/supabase';
+import { router } from 'expo-router';
+import {
+  GoogleSignin,
+  GoogleSigninButton,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
+import Constants from 'expo-constants';
 
 interface GoogleSignInProps {
   onError: (error: string) => void;
@@ -14,85 +16,101 @@ interface GoogleSignInProps {
 
 export default function GoogleSignIn({ onError, isLoading }: GoogleSignInProps) {
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: '1086197989974-ukknjt4bc0ucb9dbtuoo7fo3chfo48ha.apps.googleusercontent.com',
-    scopes: ['openid', 'profile', 'email'],
-  });
+  useEffect(() => {
+    try {
+      const webClientId = Constants.expoConfig?.extra?.googleAuth?.webClientId;
+      if (!webClientId) {
+        setConfigError('Google webClientId is missing in app config.');
+        return;
+      }
 
-  React.useEffect(() => {
-    if (response?.type === 'error') {
-      onError('Authentication failed');
-      setIsSigningIn(false);
+      GoogleSignin.configure({
+        webClientId,
+        offlineAccess: false,
+        forceCodeForRefreshToken: false,
+      });
+    } catch (e) {
+      setConfigError('Failed to configure Google Sign-In.');
     }
-  }, [response]);
+  }, []);
 
   const handleSignIn = async () => {
     setIsSigningIn(true);
     try {
-      await promptAsync();
-    } catch (error) {
-      console.error('Sign in error:', error);
-      onError('Failed to start authentication');
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const userInfo = await GoogleSignin.signIn();
+      const { idToken } = await GoogleSignin.getTokens();
+
+      if (!idToken) {
+        throw new Error('Could not get ID token from Google.');
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: idToken,
+      });
+
+      if (error) {
+        console.error('Supabase sign-in error:', error);
+        onError(error.message);
+      } else if (data.session) {
+        router.replace('/(tabs)');
+      } else {
+        onError('No session returned from Supabase.');
+      }
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // user cancelled the login flow
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        // operation (e.g. sign in) is in progress already
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        onError('Google Play Services is not available or outdated.');
+      } else {
+        console.error('Google Sign-In Error:', error);
+        onError(error.message || 'An unknown error occurred during sign in.');
+      }
+    } finally {
       setIsSigningIn(false);
     }
   };
 
-  // Don't render on web platform
-  if (Platform.OS === 'web') {
-    return null;
+  if (configError) {
+    // Show a visible error if config is broken
+    return (
+      <View style={styles.container}>
+        <Text style={{ color: 'red', textAlign: 'center' }}>{configError}</Text>
+      </View>
+    );
+  }
+
+  if (isLoading || isSigningIn) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#4285F4" />
+      </View>
+    );
   }
 
   return (
-    <TouchableOpacity
-      style={[styles.button, (isLoading || isSigningIn) && styles.buttonDisabled]}
-      onPress={handleSignIn}
-      disabled={isLoading || isSigningIn || !request}
-    >
-      <LinearGradient
-        colors={['#4285F4', '#34A853', '#FBBC05', '#EA4335']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
-      >
-        <Image
-          source={require('../assets/images/google-logo.png')}
-          style={styles.googleIcon}
-        />
-        <Text style={styles.buttonText}>
-          {isSigningIn ? 'Signing in...' : 'Sign in with Google'}
-        </Text>
-      </LinearGradient>
-    </TouchableOpacity>
+    <View style={styles.container}>
+      <GoogleSigninButton
+        style={{ width: '100%', height: 48 }}
+        size={GoogleSigninButton.Size.Wide}
+        color={GoogleSigninButton.Color.Dark}
+        onPress={handleSignIn}
+        disabled={isSigningIn}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 16,
-    marginHorizontal: 16,
-  },
-  gradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+  container: {
+    width: '100%',
     alignItems: 'center',
-    flexDirection: 'row',
     justifyContent: 'center',
+    marginVertical: 10,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#FFFFFF',
-    marginLeft: 12,
-  },
-  googleIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 8,
-  }
 });

@@ -1,4 +1,5 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
+import 'dotenv/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -8,60 +9,72 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'dark',
+  scheme: 'brutalsales',
+  assetBundlePatterns: ['**/*'],
+  
   splash: {
     image: './assets/splash.png',
     resizeMode: 'contain',
-    backgroundColor: '#0F0A19'
+    backgroundColor: '#0F0A19',
   },
-  assetBundlePatterns: [
-    "**/*"
+
+  plugins: [
+    'expo-router',
+    'expo-font',
+    '@react-native-google-signin/google-signin',
+    [
+      'react-native-google-mobile-ads',
+      {
+        android_app_id: 'ca-app-pub-8865921274070980~7438698780',
+        // ios_app_id: "ca-app-pub-xxxxxxxx~xxxxxxxx"
+      },
+    ],
   ],
+
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.brutalsales.app',
-    splash: {
-      image: './assets/splash.png',
-      resizeMode: 'contain',
-      backgroundColor: '#0F0A19',
-      dark: {
-        image: './assets/splash.png',
-        resizeMode: 'contain',
-        backgroundColor: '#0F0A19'
-      }
-    }
+    googleServicesFile: './GoogleService-Info.plist',
   },
+
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#0F0A19'
+      backgroundColor: '#0F0A19',
     },
     package: 'com.brutalsales.app',
-    splash: {
-      image: './assets/splash.png',
-      resizeMode: 'contain',
-      backgroundColor: '#0F0A19',
-      dark: {
-        image: './assets/splash.png',
-        resizeMode: 'contain',
-        backgroundColor: '#0F0A19'
-      }
-    }
+    googleServicesFile: './google-services.json',
+    config: {
+      googleMobileAdsAppId: 'ca-app-pub-8865921274070980~7438698780',
+    },
   },
-  plugins: [
-    [
-      'expo-splash-screen',
-      {
-        image: './assets/splash.png',
-        backgroundColor: '#0F0A19',
-        imageResizeMode: 'contain'
-      }
-    ],
-    'expo-router'
-  ],
-  scheme: 'brutalsales',
+
+  web: {
+    favicon: './assets/images/favicon.png',
+    bundler: 'metro',
+    output: 'static',
+  },
+
   extra: {
-    supabaseUrl: process.env.SUPABASE_URL || 'http://localhost:54321',
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'your-anon-key',
-    googleClientId: '1086197989974-ukknjt4bc0ucb9dbtuoo7fo3chfo48ha.apps.googleusercontent.com'
-  }
+    ...config.extra,
+    eas: {
+      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
+    },
+    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    googleAuth: {
+      androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+      webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    },
+    firebase: {
+      apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+      measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
+    },
+  },
 }); 

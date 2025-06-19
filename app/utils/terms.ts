@@ -52,121 +52,66 @@ export const formatTermsText = (terms: TermsData): string => {
 
 export const loadSavedTerms = async (): Promise<TermsData | null> => {
   try {
-    console.log('loadSavedTerms - checking auth...');
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    console.log('Session data:', session);
-    console.log('Session error:', sessionError);
-    
-    if (sessionError) {
-      console.error('Session error:', sessionError);
-      return getDefaultTerms();
-    }
-    
-    if (!session?.user) {
-      console.log('❌ No session found - user not logged in!');
-      return getDefaultTerms();
-    }
-    console.log('✅ User is logged in:', session.user.email);
+    if (sessionError) throw new Error('Could not get session');
+    if (!session?.user) return null; // Not logged in
 
-    console.log('Loading terms for user:', session.user.id);
-    const { data: savedTerms, error } = await supabase
+    const { data: savedTerms, error: fetchError } = await supabase
       .from('user_terms')
       .select('*')
       .eq('user_id', session.user.id)
       .single();
 
-    if (error) {
-      console.error('Error loading terms:', error);
-      return getDefaultTerms();
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') return null; // No terms found is not an error
+      throw fetchError;
     }
 
-    console.log('Loaded terms:', savedTerms);
-
-    if (savedTerms) {
-      return {
-        storeName: savedTerms.store_name || '',
-        storeDescription: savedTerms.store_description || '',
-        returnPolicy: savedTerms.return_policy || '',
-        shippingInfo: savedTerms.shipping_info || '',
-        warrantyInfo: savedTerms.warranty_info || '',
-        contactInfo: savedTerms.contact_info || '',
-        terms_text: savedTerms.terms_text || '',
-      };
-    }
-
-    return getDefaultTerms();
+    return savedTerms;
   } catch (error) {
-    console.error('Error in loadSavedTerms:', error);
-    return getDefaultTerms();
+    throw error;
   }
 };
 
 export const saveTerms = async (terms: TermsData): Promise<boolean> => {
   try {
-    console.log('saveTerms - checking auth...');
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    console.log('Session data:', session);
-    console.log('Session error:', sessionError);
-    
-    if (sessionError) {
-      console.error('Session error:', sessionError);
-      return false;
-    }
-    if (!session?.user) {
-      console.log('❌ No session found - user not logged in!');
-      return false;
-    }
-    console.log('✅ User is logged in:', session.user.email);
+    if (sessionError) throw new Error('Could not get session');
+    if (!session?.user) throw new Error('User not authenticated');
 
-    // Format the terms text before saving
     const formattedTerms = formatTermsText(terms);
-    console.log('Formatted terms:', formattedTerms);
 
-    // First check if terms exist
     const { data: existingTerms, error: checkError } = await supabase
       .from('user_terms')
       .select('id')
       .eq('user_id', session.user.id)
       .single();
-    
-    console.log('Existing terms check:', { existingTerms, checkError });
 
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-      console.error('Error checking existing terms:', checkError);
-      return false;
-    }
+    if (checkError && checkError.code !== 'PGRST116') throw checkError;
 
     const termsData = {
+      ...terms,
       user_id: session.user.id,
-      store_name: terms.storeName,
-      store_description: terms.storeDescription,
-      return_policy: terms.returnPolicy,
-      shipping_info: terms.shippingInfo,
-      warranty_info: terms.warrantyInfo,
-      contact_info: terms.contactInfo,
       terms_text: formattedTerms,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
 
-    console.log('Preparing to save terms data:', termsData);
-
-    // Use upsert instead of separate update/insert
-    const { error } = await supabase
-      .from('user_terms')
-      .upsert(termsData, {
-        onConflict: 'user_id'
-      });
-
-    if (error) {
-      console.error('Error saving terms:', error);
-      return false;
+    if (existingTerms) {
+      const { error: updateError } = await supabase
+        .from('user_terms')
+        .update(termsData)
+        .eq('id', existingTerms.id);
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertError } = await supabase
+        .from('user_terms')
+        .insert(termsData);
+      if (insertError) throw insertError;
     }
 
-    console.log('Terms saved successfully!');
     return true;
   } catch (error) {
-    console.error('Error in saveTerms:', error);
-    return false;
+    throw error;
   }
 };
 

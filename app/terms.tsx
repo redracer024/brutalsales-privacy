@@ -27,131 +27,138 @@ export default function TermsScreen() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load terms on mount
   useEffect(() => {
+    const loadTerms = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          // Logged-in user – fetch from Supabase
+          const { data: termsData, error } = await supabase
+            .from('user_terms')
+            .select(
+              'store_name, store_description, return_policy, shipping_info, warranty_info, contact_info'
+            )
+            .eq('user_id', session.user.id)
+            .single();
+
+          if (error && error.code !== 'PGRST116') throw error;
+
+          if (termsData) {
+            setTerms({
+              storeName: termsData.store_name || '',
+              storeDescription: termsData.store_description || '',
+              returnPolicy: termsData.return_policy || '',
+              shippingInfo: termsData.shipping_info || '',
+              warrantyInfo: termsData.warranty_info || '',
+              contactInfo: termsData.contact_info || '',
+            });
+            return;
+          }
+        } else {
+          // Guest mode – load from AsyncStorage if available
+          const stored = await AsyncStorage.getItem('guest_terms');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            setTerms({
+              storeName: parsed.store_name || '',
+              storeDescription: parsed.store_description || '',
+              returnPolicy: parsed.return_policy || '',
+              shippingInfo: parsed.shipping_info || '',
+              warrantyInfo: parsed.warranty_info || '',
+              contactInfo: parsed.contact_info || '',
+            });
+            return;
+          }
+        }
+
+        // Fallback to defaults
+        setDefaultTerms();
+      } catch (e) {
+        console.error('Error loading terms:', e);
+        setDefaultTerms();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     loadTerms();
   }, []);
 
-  const loadTerms = async () => {
-    try {
-      // First try to load from AsyncStorage (guest mode)
-      const guestTerms = await AsyncStorage.getItem('guest_terms');
-      if (guestTerms) {
-        const parsedTerms = JSON.parse(guestTerms);
-        setTerms({
-          storeName: parsedTerms.store_name || '',
-          storeDescription: parsedTerms.store_description || '',
-          returnPolicy: parsedTerms.return_policy || terms.returnPolicy,
-          shippingInfo: parsedTerms.shipping_info || terms.shippingInfo,
-          warrantyInfo: parsedTerms.warranty_info || terms.warrantyInfo,
-          contactInfo: parsedTerms.contact_info || terms.contactInfo,
-        });
-        return;
-      }
-
-      // If no guest terms, try to load from database
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-        return;
-      }
-
-      if (!session?.user) {
-        console.log('No active session - using default terms');
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('user_terms')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          console.log('No existing terms found for user');
-        } else {
-          console.error('Error loading terms:', error);
-          Alert.alert('Error', 'Failed to load your saved terms. Using default values.');
-        }
-        return;
-      }
-
-      if (data) {
-        setTerms({
-          storeName: data.store_name || '',
-          storeDescription: data.store_description || '',
-          returnPolicy: data.return_policy || terms.returnPolicy,
-          shippingInfo: data.shipping_info || terms.shippingInfo,
-          warrantyInfo: data.warranty_info || terms.warrantyInfo,
-          contactInfo: data.contact_info || terms.contactInfo,
-        });
-      }
-    } catch (error) {
-      console.error('Error loading terms:', error);
-      Alert.alert('Error', 'An unexpected error occurred while loading your terms.');
-    }
+  const setDefaultTerms = () => {
+    setTerms({
+      storeName: '',
+      storeDescription: '',
+      returnPolicy: 'All sales are final unless the item is defective.',
+      shippingInfo: 'Standard shipping within 2-5 business days.',
+      warrantyInfo: '30-day limited warranty covering manufacturing defects.',
+      contactInfo: 'Contact us via email or through our website.',
+    });
   };
 
   const handleSave = async () => {
-    console.log('🔍 Save button pressed - debugging session...')
-    
+    setIsSaving(true);
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      console.log('📊 Session data:', JSON.stringify(session, null, 2))
+      const { data: { session } } = await supabase.auth.getSession();
       
       if (!session?.user) {
-        console.log('❌ No active session - saving in guest mode')
-        try {
-          const guestTerms = {
-            store_name: terms.storeName,
-            store_description: terms.storeDescription,
-            return_policy: terms.returnPolicy,
-            shipping_info: terms.shippingInfo,
-            warranty_info: terms.warrantyInfo,
-            contact_info: terms.contactInfo,
-            terms_text: formatPreview(),
-            created_at: new Date().toISOString()
-          };
-          await AsyncStorage.setItem('guest_terms', JSON.stringify(guestTerms));
-          Alert.alert('Success', 'Terms saved in guest mode');
-        } catch (storageError) {
-          console.error('Error saving guest terms:', storageError);
-          Alert.alert('Error', 'Failed to save terms in guest mode');
-        }
+        await saveGuestTerms(terms);
         return;
       }
 
-      // User is logged in, save to database
-      const { error: upsertError } = await supabase
-        .from('user_terms')
-        .upsert({
-          user_id: session.user.id,
-          store_name: terms.storeName,
-          store_description: terms.storeDescription,
-          return_policy: terms.returnPolicy,
-          shipping_info: terms.shippingInfo,
-          warranty_info: terms.warrantyInfo,
-          contact_info: terms.contactInfo,
-          terms_text: formatPreview(),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (upsertError) {
-        console.error('Error saving terms:', upsertError);
-        Alert.alert('Error', 'Failed to save terms. Please try again.');
-        return;
-      }
-
-      Alert.alert('Success', 'Terms saved successfully');
-    } catch (error) {
-      console.error('Error in handleSave:', error);
+      await saveUserTerms(session.user.id, terms);
+    } catch (e) {
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const saveGuestTerms = async (terms: any) => {
+    try {
+      const guestTerms = {
+        store_name: terms.storeName,
+        store_description: terms.storeDescription,
+        return_policy: terms.returnPolicy,
+        shipping_info: terms.shippingInfo,
+        warranty_info: terms.warrantyInfo,
+        contact_info: terms.contactInfo,
+        terms_text: formatPreview(),
+        created_at: new Date().toISOString()
+      };
+      await AsyncStorage.setItem('guest_terms', JSON.stringify(guestTerms));
+      Alert.alert('Success', 'Terms saved in guest mode');
+    } catch (storageError) {
+      Alert.alert('Error', 'Failed to save terms in guest mode');
+    }
+  };
+
+  const saveUserTerms = async (userId: any, terms: any) => {
+    const { error: upsertError } = await supabase
+      .from('user_terms')
+      .upsert({
+        user_id: userId,
+        store_name: terms.storeName,
+        store_description: terms.storeDescription,
+        return_policy: terms.returnPolicy,
+        shipping_info: terms.shippingInfo,
+        warranty_info: terms.warrantyInfo,
+        contact_info: terms.contactInfo,
+        terms_text: formatPreview(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (upsertError) {
+      Alert.alert('Error', 'Failed to save terms. Please try again.');
+      return;
+    }
+
+    Alert.alert('Success', 'Terms saved successfully');
   };
 
   const formatPreview = () => {

@@ -10,16 +10,17 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
-  Clipboard,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { ArrowLeft, Wand as Wand2, Copy, Smile, Briefcase, Zap, Laugh } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
 import AdBanner from '@/components/AdBanner';
-import InterstitialAd from '@/components/InterstitialAd';
 import { useAdManager } from '@/hooks/useAdManager';
 import { supabase } from '@/lib/supabase';
+
+const AD_UNIT_ID = 'ca-app-pub-8865921274070980/7852727793';
 
 export default function CreateScreen() {
   const [formData, setFormData] = useState({
@@ -35,9 +36,8 @@ export default function CreateScreen() {
   const [acceptOffers, setAcceptOffers] = useState(true);
   const [userTerms, setUserTerms] = useState<string | null>(null);
 
-  const adManager = useAdManager({
-    isPremium,
-    showInterstitialAfter: 1, // Show interstitial before generation
+  const { showAd, isAdLoaded } = useAdManager(AD_UNIT_ID, () => {
+    performGeneration();
   });
 
   useEffect(() => {
@@ -110,10 +110,10 @@ export default function CreateScreen() {
     }
 
     // Show interstitial ad before generation for free users
-    if (!isPremium) {
-      adManager.incrementActionCount();
-      // Don't call performGeneration here - it will be called when ad is dismissed
+    if (!isPremium && isAdLoaded) {
+      showAd();
     } else {
+      // If ad is not loaded or user is premium, generate directly
       await performGeneration();
     }
   };
@@ -187,9 +187,14 @@ export default function CreateScreen() {
     }
   };
 
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     try {
-      Clipboard.setString(generatedDescription);
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(generatedDescription);
+      } else {
+        const Clipboard = require('@react-native-clipboard/clipboard').default;
+        Clipboard.setString(generatedDescription);
+      }
       Alert.alert('Success', 'Description copied to clipboard');
     } catch (error) {
       console.error('Copy error:', error);
@@ -198,7 +203,7 @@ export default function CreateScreen() {
   };
 
   const handleUpgradeToPremium = () => {
-    router.push('/(tabs)/premium');
+    router.push('/premium');
   };
 
   return (
@@ -207,9 +212,6 @@ export default function CreateScreen() {
         colors={['#0F0A19', '#1E1B4B', '#312E81']}
         style={styles.gradient}
       >
-        {/* Ad Banner */}
-        <AdBanner isPremium={isPremium} />
-
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
@@ -365,15 +367,6 @@ export default function CreateScreen() {
             </View>
           )}
         </ScrollView>
-
-        {/* Interstitial Ad */}
-        <InterstitialAd
-          visible={adManager.showInterstitial}
-          onClose={adManager.hideInterstitial}
-          onUpgrade={handleUpgradeToPremium}
-          onAdDismissedAction={performGeneration}
-          isPremium={isPremium}
-        />
       </LinearGradient>
     </SafeAreaView>
   );

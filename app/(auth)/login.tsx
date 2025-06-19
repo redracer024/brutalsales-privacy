@@ -124,6 +124,10 @@ export default function LoginScreen() {
     return Constants.expoConfig?.web?.auth?.redirectUrl || process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL;
   };
 
+  const handleGoogleError = (msg: string) => {
+    Alert.alert('Google Sign-In Error', msg);
+  };
+
   if (authLoading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
@@ -209,11 +213,11 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <GoogleSignIn
-              onError={(error) => {
-                Alert.alert('Error', error);
-              }}
+              onError={handleGoogleError}
               isLoading={isLoading}
             />
+
+            {!isLoading && <Text style={{color: 'white', textAlign: 'center'}}>GoogleSignIn should be visible below ↑</Text>}
 
             <TouchableOpacity 
               style={[styles.guestButton, isLoading && styles.buttonDisabled]} 

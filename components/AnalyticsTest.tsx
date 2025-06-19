@@ -82,7 +82,7 @@ export default function AnalyticsTest() {
 
   const testCrash = () => {
     crashlytics.log('Testing crash reporting');
-    throw new Error('Test crash');
+    crashlytics.crash();
   };
 
   return (

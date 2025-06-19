@@ -96,6 +96,26 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="features"
+        options={{
+          title: 'Features',
+          tabBarIcon: ({ color, focused }) => (
+            <LinearGradient
+              colors={focused ? ['#D97706', '#F59E0B'] : ['rgba(217, 119, 6, 0.1)', 'rgba(245, 158, 11, 0.1)']}
+              style={{
+                padding: 8,
+                borderRadius: 12,
+                opacity: focused ? 1 : 0.7,
+                borderWidth: focused ? 1 : 0,
+                borderColor: 'rgba(217, 119, 6, 0.3)',
+              }}
+            >
+              <FontAwesome name="lightbulb-o" size={24} color={color} />
+            </LinearGradient>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="premium"
         options={{
           title: 'Premium',

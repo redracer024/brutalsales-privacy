@@ -1,80 +1,49 @@
-import { Platform } from 'react-native';
+import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
+import { getAnalytics, isSupported, Analytics } from 'firebase/analytics';
+import Constants from 'expo-constants';
 
-// Initialize a dummy Firebase instance for web development
-const app = {
-  name: '[DEFAULT]',
-  options: {
-    apiKey: 'AIzaSyBEJU1kQ_mw-DDJYBtsyB0EIay1U96OwO4',
-    authDomain: 'brutal-sales-app.firebaseapp.com',
-    projectId: 'brutal-sales-app',
-    storageBucket: 'gs://brutal-sales-app.firebasestorage.app',
-    messagingSenderId: '1086197989974',
-    appId: '1:1086197989974:android:0da818e33d81714d17b1f7',
-    measurementId: 'G-V36G0ER5E8',
-    databaseURL: 'https://brutal-sales-app.firebaseio.com'
-  }
+const firebaseConfig = {
+  apiKey: Constants.expoConfig?.extra?.firebase.apiKey,
+  authDomain: Constants.expoConfig?.extra?.firebase.authDomain,
+  projectId: Constants.expoConfig?.extra?.firebase.projectId,
+  storageBucket: Constants.expoConfig?.extra?.firebase.storageBucket,
+  messagingSenderId: Constants.expoConfig?.extra?.firebase.messagingSenderId,
+  appId: Constants.expoConfig?.extra?.firebase.appId,
+  measurementId: Constants.expoConfig?.extra?.firebase.measurementId,
 };
 
-// Create a mock analytics object for development
-const analytics = {
-  logEvent: (eventName: string, params?: Record<string, any>) => {
-    if (__DEV__) {
-      console.log('Analytics Event:', eventName, params);
+let app: FirebaseApp | undefined;
+// Check if we are in the browser
+if (typeof window !== 'undefined') {
+    if (getApps().length === 0) {
+        app = initializeApp(firebaseConfig);
+    } else {
+        app = getApp();
     }
-    return Promise.resolve();
-  },
-  setAnalyticsCollectionEnabled: (enabled: boolean) => {
-    if (__DEV__) {
-      console.log('Analytics Collection Enabled:', enabled);
-    }
-    return Promise.resolve();
-  },
-  logScreenView: (screenView: { screen_name: string; screen_class?: string }) => {
-    if (__DEV__) {
-      console.log('Screen View:', screenView);
-    }
-    return Promise.resolve();
-  },
-  setUserProperty: (name: string, value: string) => {
-    if (__DEV__) {
-      console.log('User Property:', name, value);
-    }
-    return Promise.resolve();
-  },
-  setUserId: (userId: string | null) => {
-    if (__DEV__) {
-      console.log('User ID:', userId);
-    }
-    return Promise.resolve();
-  },
-  resetAnalyticsData: () => {
-    if (__DEV__) {
-      console.log('Analytics Data Reset');
-    }
-    return Promise.resolve();
-  }
-};
+}
 
-// Create a mock crashlytics object for development
+let analytics: Analytics | undefined;
+// Check if running in a browser environment and analytics is supported
+if (app && typeof window !== 'undefined') {
+  isSupported().then((supported) => {
+    if (supported) {
+      analytics = getAnalytics(app);
+    }
+  });
+}
+
+// Mock crashlytics for web since it's mobile-only
 const crashlytics = {
-  log: (message: string) => {
+  recordError: (error: Error, jsErrorName?: string) => {
     if (__DEV__) {
-      console.log('Crashlytics Log:', message);
+      console.error(jsErrorName || 'Crashlytics-Web-Mock', error);
     }
-    return Promise.resolve();
   },
-  setAttribute: (name: string, value: string) => {
+  setAttributes: (attributes: { [key: string]: string }) => {
     if (__DEV__) {
-      console.log('Crashlytics Attribute:', name, value);
+      console.log('Crashlytics-Web-Mock: setAttributes', attributes);
     }
-    return Promise.resolve();
   },
-  recordError: (error: Error) => {
-    if (__DEV__) {
-      console.log('Crashlytics Error:', error);
-    }
-    return Promise.resolve();
-  }
 };
 
-export { app, analytics, crashlytics }; 
+export { app, analytics, crashlytics };
