@@ -25,8 +25,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'react-native-google-mobile-ads',
       {
-        android_app_id: 'ca-app-pub-8865921274070980~7438698780',
-        // ios_app_id: "ca-app-pub-xxxxxxxx~xxxxxxxx"
+        android_app_id: process.env.EXPO_PUBLIC_ADMOB_APP_ID_ANDROID || 'ca-app-pub-8865921274070980~7438698780',
+        ios_app_id: process.env.EXPO_PUBLIC_ADMOB_APP_ID_IOS || 'ca-app-pub-8865921274070980~8025951759',
       },
     ],
   ],
@@ -45,7 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: 'com.brutalsales.app',
     googleServicesFile: './google-services.json',
     config: {
-      googleMobileAdsAppId: 'ca-app-pub-8865921274070980~7438698780',
+      googleMobileAdsAppId: process.env.EXPO_PUBLIC_ADMOB_APP_ID_ANDROID || 'ca-app-pub-8865921274070980~7438698780',
     },
   },
 
